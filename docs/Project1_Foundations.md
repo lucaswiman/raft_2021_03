@@ -136,7 +136,7 @@ server network address and port number.  Go ahead and hard-code that
 information into the `kvserver.py` and `kvclient.py` programs.  You
 can always make it more flexible later.
 
-## Part 3 - Control a Traffic Light
+## Part 3 - Command and Control
 
 You have been been tasked with writing the control software for a
 simple traffic light.  So, let's think about traffic lights for a

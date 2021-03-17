@@ -34,8 +34,8 @@ Dave
 
 ## Live Session
 
-The course is conducted live from 09:30 to 17:30 US Central Time
-(UTC-06:00).  Here are details about the Zoom meeting:
+The course is conducted live from 09:30 to 17:30 US Central Daylight Time
+(UTC-05:00).  Here are details about the Zoom meeting:
 
 Topic: Rafting Trip
 
@@ -59,7 +59,8 @@ For live chat during the course, we use Gitter.  Here is a link:
 ## Raft Resources
 
 Our primary source of information on Raft is found at https://raft.github.io.
-You should also watch the video at https://www.youtube.com/watch?v=YbZ3zDzDnrw
+You should also watch the video at https://www.youtube.com/watch?v=YbZ3zDzDnrw.  Of
+particular interest is the [Raft Paper](https://raft.github.io/raft.pdf).
 
 ## The Challenge of Raft
 
@@ -109,7 +110,7 @@ that has often worked in the past.
 * [Project 2 - Model Building](docs/Project2_ModelBuilding.md)
 * [Project 3 - Simulation](docs/Project3_Simulation.md)
 * [Project 4 - The Log](docs/Project4_TheLog.md)
-* [Project 5 - Raft Network](docs/Project6_RaftNet.md)
+* [Project 5 - Raft Network](docs/Project5_RaftNet.md)
 * [Project 6 - Log Replication](docs/Project6_LogReplication.md)
 * [Project 7 - Consensus](docs/Project7_Consensus.md)
 * [Project 8 - Leader Election](docs/Project8_LeaderElection.md)

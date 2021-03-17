@@ -264,7 +264,7 @@ def main():
     t2.start()
     print('Waiting')
     t1.join()
-    t2.jon()
+    t2.join()
     print('Done')
 
 main()
