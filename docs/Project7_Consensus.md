@@ -102,6 +102,9 @@ class KVStore:
     ...
 ```
 
+However, how are the various methods modified to work with
+Raft?
+
 ## Testing
 
 Testing this part of the project is tricky and will require some thought.
@@ -127,10 +130,13 @@ kv0.set('foo', 'hello)
 # Verify that the transaction is NOT complete initially
 assert 'foo' not in kv0.data
 
-# Run the Raft model/simulation
+# Have the leader append the entry on followers
+serv0.send_append_entries()
+
+# Run all of the resulting messages
 process_messages([serv0, serv1, serv2])
 
-# Assert that the transaction got took place on the leader
+# Assert that the transaction now took place on the leader
 assert kv0.get('foo') == 'hello'
 ```
 
@@ -142,7 +148,10 @@ on the KV store (`get()`, `set()`, and `delete()`) don't happen
 right away--they get delayed until certain things happen in the
 underlying Raft module.   Coordinating the time sequencing of
 this is problematic and you'll need to think about the software
-architecture for it.
+architecture for it.   One possible approach is to rely upon
+callback functions.  For example, the KV-store could register a
+callback that gets triggered when transactions are ready to
+execute.  
   
 
  

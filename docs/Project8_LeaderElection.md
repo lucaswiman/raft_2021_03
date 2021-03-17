@@ -86,7 +86,7 @@ is at least as up-to-date as itself. Read section 5.4.1 carefully.
 Then read it again.
 
 4. A newly elected leader may NEVER commit entries from a previous
-entry before it has committed new entries from its own term.  See
+term before it has committed new entries from its own term.  See
 Figure 8 and section 5.4.2.
 
 5. All messages in Raft embed the term number of the sender.  If a

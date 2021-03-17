@@ -18,7 +18,12 @@ class RaftServer:
         ...
 	self.heard_from_leader = False
 	...
-        
+
+    def follower_append_entries(self, msg):
+        ...
+	self.heard_from_leader = True
+	...
+	
     def election_timeout(self):
         if not self.heard_from_leader:
 	    self.become_candidate()
@@ -79,13 +84,34 @@ First, clients need to be able to append new entries onto the leader
 log.  Some of this was already addressed in Project 7. However, how
 does this interact with leader heartbeats?  One sensible approach is
 for client appends to be added to the leader log, but for them to
-generate no actual `AppendEntries` messages. Instead, the only actual
-`AppendEntries` communication to followers is delayed and occurs only
-in connection with the heartbeat.
+generate no actual `AppendEntries` messages.  For example:
+
+```
+class RaftServer:
+    ...
+    def client_append_entry(self, item):
+        entry = LogEntry(self.current_term, item)
+	...
+        append_entries(self.log, prev_index, prev_term, [ entry ])
+	return    # Do nothing else
+    ...
+```
+The actual `AppendEntries` communication to followers would be
+handled in a separate step that only takes place in connection
+with the heartbeat.
+
+```
+class RaftServer:
+    ...
+    def leader_heartbeat(self):
+        # Send AppendEntries to all followers
+	self.send_all_append_entries()
+	...
+```
 
 As an example, consider a heavily loaded server with a lot of clients.
 If 100s of requests were made quickly, those requests would basically
-be queued up on the leader.  When it got the heartbeat, it would then
+be queued up on the leader.  When it got the heartbeat timer, it would then
 send all new requests at once to the followers in a single
 `AppendEntries` message.  The main goal is to reduce the number of
 messages sent to followers.  This approach also limits the possibility
@@ -96,11 +122,37 @@ of overlapping `AppendEntries` messages.
 Each server has a role attribute that indicates that if it's the leader
 or not.   However, is this actually enough to establish leadership in
 the face of network partitions?   That is, can a client just look at this
-and know they're interacting with a valid leader?
+and know they're interacting with a valid leader?  Not really.
 
 To be absolutely certain, the only way to determine leadership is if
 a) a server says its the leader and b) that server has successfully
-received a quorum of responses from its followers since the last
-heartbeat.
+received a quorum of responses from its followers since you asked
+if it was the leader?
 
-Devise some abstraction/API to implement this. 
+Part (b) is quite subtle, but here's the gist of it.  If you're a
+client, you walk up to a server that claims to be the leader (based on
+its current role setting).  However, not quite believing it, you
+decide to stand there and wait.  You will watch to see if the leader
+actually receives a quorum of responses from its heartbeat message (in
+the current term).  If so, you at least know that the server was the
+leader when you first contacted it.
+
+Your challenge is to implement some kind of API for determining
+(with some certainty) that a server is currently the active
+leader.   Perhaps it involves a callback function:
+
+```
+class RaftServer:
+    ...
+    def is_leader(self, callback):
+        ...
+
+```
+
+This would execute `callback(True)` or `callback(False)` if
+the given server is the leader or not.  It's understood that
+this determination might be delayed until the server can establish
+that it's heard from a quorum of followers.
+
+
+

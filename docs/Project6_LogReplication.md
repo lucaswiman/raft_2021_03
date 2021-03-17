@@ -17,7 +17,7 @@ will do this by sending messages through the Raft network and
 processing their replies.  You will be able to append new log entries
 onto the leader log and those entries will appear on all of the
 followers. The leader will be able to bring any follower up to date if
-its log is missing many entries. 
+its log is missing any entries. 
 
 ## Some Wishful Thinking
 
