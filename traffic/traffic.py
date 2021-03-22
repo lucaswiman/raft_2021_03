@@ -46,7 +46,7 @@ class State(NamedTuple):
 #     The push-button causes the North-South light to change immediately if it has been green for more than 30 seconds. If less than 30 seconds have elapsed, the light will change once it has been green for 30 seconds.
 
 
-STATES = {
+STATES = (
     # The first 30 seconds of a NS green light. If it receives a pedestrian signal,
     # it will keep the active timer ("the light will change once it has been green
     # for 30 seconds.")
@@ -100,7 +100,7 @@ STATES = {
         ew_color="Y",
         timer_seconds=5,
         children={
-            "timer_done": "NS_GREEN",
+            "timer_done": "NS_GREEN_LONG",
             # "pedestrian_button": TODO? Not mentioned by the spec, but seems
             #                      like you'd want to do something here.
         },
@@ -114,7 +114,7 @@ STATES = {
             "timer_done": "EW_YELLOW",
         },
     ),
-}
+)
 
 
 class StateMachine:
@@ -126,7 +126,7 @@ class StateMachine:
         self.timer: Optional[Timer] = None
 
     def start(self):
-        self.enter()
+        self.enter(self.current_state.name)
 
     @contextlib.contextmanager
     def lock(self):
@@ -142,11 +142,11 @@ class StateMachine:
         self.set_light_color("ns", state.ns_color)
         self.set_light_color("ew", state.ew_color)
         if state.timer_seconds:
-            if not state.keep_timer:
-                self.start_timer(state.timer_seconds)
-        elif self.timer:
+            self.start_timer(state.timer_seconds)
+        elif self.timer and not self.current_state.keep_timer:
             self.timer.cancel()
             self.timer = None
+        self.current_state = state
 
     def start_timer(self, seconds: int):
         """
@@ -155,7 +155,7 @@ class StateMachine:
         print(f"Starting timer for {seconds}.")
         if self.timer:
             self.timer.cancel()
-        self.timer = Timer(seconds)
+        self.timer = Timer(seconds, state_machine=self)
         if self.execute_timers:
             self.timer.start(self)
 
@@ -170,20 +170,24 @@ class StateMachine:
             if event == "timer_done" and origin != self.timer:
                 # Some previous timer finished, whatevs.
                 return
+            elif event =="timer_done":
+                self.timer = None
+            next_state: Optional[str] = self.current_state.children.get(event)
+            if next_state is None:
+                print("Received invalid transition; ignoring.")
             else:
-                next_state: Optional[str] = self.current_state.children.get(event)
-                if next_state is None:
-                    print("Received invalid transition; ignoring.")
-                else:
-                    self.enter(next_state)
+                self.enter(next_state)
 
 
 class Timer:
-    def __init__(self, seconds):
+    def __init__(self, seconds, state_machine):
         self.seconds = seconds
         self.thread = None
         self.queue = Queue()
-        self.uuid = uuid4()
+        self.state_machine = state_machine
+
+    def timer_done(self):
+        self.state_machine.process_event("timer_done", origin=self)
 
     def do_timer(self, state_machine):
         try:
@@ -191,7 +195,7 @@ class Timer:
             # canceled.
             item = self.queue.get(block=True, timeout=self.seconds)
         except Empty:
-            state_machine.process_event("timer_done", origin=self)
+            self.timer_done()
         else:
             if item == "cancel":
                 pass
@@ -202,4 +206,4 @@ class Timer:
         self.queue.put("cancel")
 
     def start(self, state_machine):
-        self.thread = Thread(target=self.do_timer, args=(state_machine,), daemon=True)
+        self.thread = Thread(target=self.do_timer, daemon=True)
