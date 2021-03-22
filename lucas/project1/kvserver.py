@@ -26,7 +26,19 @@ def process_command(sock: socket.socket):
         transport.send_message(sock, b"Executed command")
     elif command.startswith(b'get:'):
         [key] = re.findall(rb"get:(\w+)", command)
-        transport.send_message(sock, DATA[key.decode('ascii')])
+        key = key.decode('ascii')
+        if key in DATA:
+            transport.send_message(sock, DATA[key])
+        else:
+            transport.send_message(sock, (f"Key {key} not found.").encode('utf-8'))
+    elif command.startswith(b'delete:'):
+        [key] = re.findall(rb"delete:(\w+)", command)
+        key = key.decode('ascii')
+        if key in DATA:
+            del DATA[key]
+            transport.send_message(sock, (f"Deleted key {key}.").encode('utf-8'))
+        else:
+            transport.send_message(sock, (f"Key {key} not found.").encode('utf-8'))
     else:
         raise ValueError(f'Invalid command: {command}')
 

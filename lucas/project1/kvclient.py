@@ -24,6 +24,9 @@ def process_command(sock: socket.socket, command, key, value=None):
     elif command == "set":
         transport.send_message(sock, b"set:%s=%s" % (key.encode('ascii'), value.encode('ascii')))
         result = transport.recv_message(sock)
+    elif command == "delete":
+        transport.send_message(sock, b"delete:%s" % key.encode('ascii'))
+        result = transport.recv_message(sock)
     else:
         raise ValueError(f"Invalid command {command=}")
     print(result.decode('utf-8'))
@@ -31,7 +34,7 @@ def process_command(sock: socket.socket, command, key, value=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Serves the key-value store.")
     parser.add_argument("--port", type=int, help="Port to open a socket on.", default=18_000)
-    parser.add_argument("command", nargs=1, help="get|set")
+    parser.add_argument("command", nargs=1, help="get|set|delete")
     parser.add_argument("--key", type=str)
     parser.add_argument("--value", type=str, default=None)
     args = parser.parse_args()
