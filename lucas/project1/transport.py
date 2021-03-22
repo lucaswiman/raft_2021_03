@@ -2,6 +2,7 @@ import argparse
 import socket
 import sys
 import threading
+from typing import *
 
 """
 A critical feature of these functions is that they work with messages
@@ -31,13 +32,16 @@ def send_message(sock: socket.socket, msg: bytes):
     sock.send(encoded_msg)
 
 
-def recv_message(sock: socket.socket):
+def recv_message(sock: socket.socket) -> Optional[bytes]:
+    """
+    Reads a message off the socket. Returns None if the socket has been disconnected.
+    """
     size_chars = ''
     while True:
         char = sock.recv(1)
         if char == b'':
-            # Disconnection?
-            continue
+            # Disconnection
+            return None
         if char.isdigit():
             size_chars += char.decode('ascii')
         elif char == b":":
@@ -54,18 +58,26 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, help="Port to open a socket on.", default=18_000)
     args = parser.parse_args()
     [command] = args.command
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     port = args.port
     if command == "recv":
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
-        sock.bind(("", port))
-        sock.listen()
-        client, addr = sock.accept()
         while True:
-            msg = recv_message(client)
-            print(f"Received message: {msg=}")
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
+            sock.bind(("", port))
+            sock.listen(1)
+            client, addr = sock.accept()
+            while True:
+                msg = recv_message(client)
+                if msg is None:
+                    print("Connection closed; reinitializing socket.")
+                    sock.close()
+                    break
+                else:
+                    print(f"Received message: {msg=}")
     elif command == "send":
-        sock.connect(('localhost', 18000))
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(('localhost', port))
         send_message(sock, sys.stdin.buffer.read())
+        sock.close()
     else:
         raise ValueError(f"Invalid command: {command}")
