@@ -14,7 +14,6 @@ import sys
 from queue import Empty, Queue
 from typing import NamedTuple, Optional, Literal, Dict
 from threading import Lock, Thread
-from uuid import uuid4
 import contextlib
 
 
@@ -256,7 +255,6 @@ class RpcStateMachine(StateMachine):
 def serve_button(machine, port):
     sock = socket(AF_INET, SOCK_DGRAM)
     sock.bind(("", port))
-    light = "R"
     while True:
         msg, addr = sock.recvfrom(8192)
         if msg == b"press":

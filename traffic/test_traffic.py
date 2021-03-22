@@ -1,26 +1,29 @@
+from typing import Dict, List
 from traffic import StateMachine, LightPosition, LightColor
+
 
 class DebugStateMachine(StateMachine):
     execute_timers = False
+
     def __init__(self, initial_state: str):
         super().__init__(initial_state)
-        self.light_colors = {}
-        self.history = []
+        self.light_colors: Dict[LightPosition, LightColor] = {}
+        self.history: List[str] = []
 
     def enter(self, state_name: str):
         super().enter(state_name)
         self.history.append(state_name)
-        assert self.light_colors['ns'] == self.current_state.ns_color
-        assert self.light_colors['ew'] == self.current_state.ew_color
-        assert (self.light_colors['ns'], self.light_colors['ew']) != ("G", "G")
-        assert (self.light_colors['ns'], self.light_colors['ew']) != ("Y", "Y")
+        assert self.light_colors["ns"] == self.current_state.ns_color
+        assert self.light_colors["ew"] == self.current_state.ew_color
+        assert (self.light_colors["ns"], self.light_colors["ew"]) != ("G", "G")
+        assert (self.light_colors["ns"], self.light_colors["ew"]) != ("Y", "Y")
 
     def set_light_color(self, position: LightPosition, color: LightColor):
         """
         Override in impl class.
         """
         self.light_colors[position] = color
-    
+
 
 def test_golden_flow():
     machine = DebugStateMachine("EW_GREEN")
@@ -29,7 +32,7 @@ def test_golden_flow():
     # The East-West light stays green for 30 seconds.
     assert machine.timer.seconds == 30
     assert machine.current_state.name == "EW_GREEN"
-    
+
     # Pressing the button should do nothing when the EW light is green.
     machine.process_event("pedestrian_button")
     assert machine.timer.seconds == 30
@@ -45,7 +48,9 @@ def test_golden_flow():
     assert machine.timer.seconds == 30
     machine.timer.seconds = 13
     machine.process_event("pedestrian_button")
-    assert machine.timer.seconds == 13  # wait the remaining seconds before changing lights.
+    assert (
+        machine.timer.seconds == 13
+    )  # wait the remaining seconds before changing lights.
     assert machine.current_state.name == "NS_GREEN_PEDESTRIAN_WAIT"
     machine.timer.timer_done()
     assert machine.timer.seconds == 5
@@ -53,7 +58,7 @@ def test_golden_flow():
     machine.timer.timer_done()
     assert machine.current_state.name == "EW_GREEN"
     assert machine.timer.seconds == 30
-    
+
     # The North-South light stays green for 60 seconds.
     machine = DebugStateMachine("NS_GREEN_LONG")
     machine.start()
@@ -68,7 +73,8 @@ def test_golden_flow():
     machine.timer.timer_done()
     assert machine.current_state.name == "EW_GREEN"
     assert machine.timer.seconds == 30
-    
+
+
 def test_immediate_transition_if_less_than_30s():
     machine = DebugStateMachine("NS_GREEN_LONG")
     machine.start()
@@ -80,4 +86,3 @@ def test_immediate_transition_if_less_than_30s():
     machine.process_event("pedestrian_button")
     assert machine.current_state.name == "NS_YELLOW"
     assert machine.timer.seconds == 5
-    
