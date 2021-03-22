@@ -10,6 +10,10 @@ class DebugStateMachine(StateMachine):
     def enter(self, state_name: str):
         super().enter(state_name)
         self.history.append(state_name)
+        assert self.light_colors['ns'] == self.current_state.ns_color
+        assert self.light_colors['ew'] == self.current_state.ew_color
+        assert (self.light_colors['ns'], self.light_colors['ew']) != ("G", "G")
+        assert (self.light_colors['ns'], self.light_colors['ew']) != ("Y", "Y")
 
     def set_light_color(self, position: LightPosition, color: LightColor):
         """
