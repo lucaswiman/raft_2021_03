@@ -9,11 +9,24 @@
 #
 # Motivation:  Make something that can be tested/debugged. Debugging
 # with threads/sockets is a nightmare.
+from socket import socket, AF_INET, SOCK_DGRAM
+import sys
 from queue import Empty, Queue
 from typing import NamedTuple, Optional, Literal, Dict
-from threading import Thread
+from threading import Lock, Thread
 from uuid import uuid4
 import contextlib
+
+
+orig_print = print
+
+
+def print(*args, **kwargs):
+    import time
+
+    sys.stdout.write(f"{time.time()}: ")
+    sys.stdout.flush()
+    orig_print(*args, **kwargs)
 
 
 LightColor = Literal["R", "Y", "G"]
@@ -124,6 +137,7 @@ class StateMachine:
     def __init__(self, initial_state: str):
         self.current_state = self.NAME_TO_STATE[initial_state]
         self.timer: Optional[Timer] = None
+        self._lock = Lock()
 
     def start(self):
         self.enter(self.current_state.name)
@@ -135,9 +149,11 @@ class StateMachine:
 
         To be implemented in subclasses
         """
-        yield
+        with self._lock:
+            yield
 
     def enter(self, state_name: str):
+        print(f"Entering state {state_name}.")
         state = self.NAME_TO_STATE[state_name]
         self.set_light_color("ns", state.ns_color)
         self.set_light_color("ew", state.ew_color)
@@ -149,9 +165,6 @@ class StateMachine:
         self.current_state = state
 
     def start_timer(self, seconds: int):
-        """
-        Override in impl class.
-        """
         print(f"Starting timer for {seconds}.")
         if self.timer:
             self.timer.cancel()
@@ -170,13 +183,16 @@ class StateMachine:
             if event == "timer_done" and origin != self.timer:
                 # Some previous timer finished, whatevs.
                 return
-            elif event =="timer_done":
+            elif event == "timer_done":
                 self.timer = None
             next_state: Optional[str] = self.current_state.children.get(event)
             if next_state is None:
                 print("Received invalid transition; ignoring.")
             else:
                 self.enter(next_state)
+
+
+SPEEDUP = 1
 
 
 class Timer:
@@ -189,11 +205,12 @@ class Timer:
     def timer_done(self):
         self.state_machine.process_event("timer_done", origin=self)
 
-    def do_timer(self, state_machine):
+    def do_timer(self):
+        print(f"Starting timer for {self.seconds}")
         try:
             # Cheesy way to allow waiting a certain number of seconds or being
             # canceled.
-            item = self.queue.get(block=True, timeout=self.seconds)
+            item = self.queue.get(block=True, timeout=self.seconds // SPEEDUP)
         except Empty:
             self.timer_done()
         else:
@@ -207,3 +224,54 @@ class Timer:
 
     def start(self, state_machine):
         self.thread = Thread(target=self.do_timer, daemon=True)
+        self.thread.start()
+
+
+class RpcStateMachine(StateMachine):
+    NS_PORT = 14000
+    EW_PORT = 15000
+
+    @contextlib.contextmanager
+    def lock(self):
+        """
+        Global lock which happens during state transitions.
+
+        To be implemented in subclasses
+        """
+        yield
+
+    def set_light_color(self, position: LightPosition, color: LightColor):
+        """
+        Override in impl class.
+        """
+        sock = socket(AF_INET, SOCK_DGRAM)
+        with sock:
+            if position == "ns":
+                sock.sendto(color.encode("ascii"), ("localhost", self.NS_PORT))
+            elif position == "ew":
+                sock.sendto(color.encode("ascii"), ("localhost", self.EW_PORT))
+            else:
+                assert False, f"Invalid {position}"
+        print(f"Setting {position} to {color}.")
+
+
+def serve_button(machine, port):
+    sock = socket(AF_INET, SOCK_DGRAM)
+    sock.bind(("", port))
+    light = "R"
+    while True:
+        msg, addr = sock.recvfrom(8192)
+        if msg == b"press":
+            machine.process_event("pedestrian_button")
+        else:
+            print(msg)
+            return
+
+
+if __name__ == "__main__":
+    SPEEDUP = 3
+    machine = RpcStateMachine("NS_GREEN_LONG")
+    machine.start()
+    thread = Thread(target=serve_button, args=(machine, 16_000), daemon=True)
+    thread.start()
+    thread.join()
