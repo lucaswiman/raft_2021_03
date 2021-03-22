@@ -137,7 +137,6 @@ class StateMachine:
     def __init__(self, initial_state: str):
         self.current_state = self.NAME_TO_STATE[initial_state]
         self.timer: Optional[Timer] = None
-        self._lock = Lock()
 
     def start(self):
         self.enter(self.current_state.name)
@@ -149,8 +148,7 @@ class StateMachine:
 
         To be implemented in subclasses
         """
-        with self._lock:
-            yield
+        yield
 
     def enter(self, state_name: str):
         print(f"Entering state {state_name}.")
@@ -230,15 +228,15 @@ class Timer:
 class RpcStateMachine(StateMachine):
     NS_PORT = 14000
     EW_PORT = 15000
+    _lock = Lock()
 
     @contextlib.contextmanager
     def lock(self):
         """
         Global lock which happens during state transitions.
-
-        To be implemented in subclasses
         """
-        yield
+        with self._lock:
+            yield
 
     def set_light_color(self, position: LightPosition, color: LightColor):
         """
