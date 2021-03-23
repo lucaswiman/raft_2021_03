@@ -90,10 +90,15 @@ class MockNetwork(Network):
         if node_id in self.disabled_nodes:
             return None
         messages = self.server_to_messages[node_id]
-        if self.random.random() < self.message_failure_rate / 2:
+        message: Optional[bytes]
+        try:
+            if self.shuffle_messages:
+                self.random.shuffle(messages)
+                message = messages.pop()
+            else:
+                message = messages.pop(0)  # O(n)
+        except IndexError:
             return None
-        if self.shuffle_messages:
-            self.random.shuffle(messages)
-            return messages.pop()
-        else:
-            return messages.pop(0)  # O(n)
+        if self.random.random() < self.message_failure_rate / 2:
+            message = None
+        return message
