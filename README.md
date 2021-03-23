@@ -95,7 +95,7 @@ Video from the live session will be posted here.
 * [Project 1/2](https://vimeo.com/527559690/805219b471) (5 min)
 * [Project 2](https://vimeo.com/527559780/db306adf1e) (21 min)
 * [Project 2](https://vimeo.com/527559974/17e5af8a95) (21 min)
-* [Project 2](https://vimeo.com/527560154/d66b828452 (9 min)
+* [Project 2](https://vimeo.com/527560154/d66b828452) (9 min)
 
 ## Preparation Exercises
 
