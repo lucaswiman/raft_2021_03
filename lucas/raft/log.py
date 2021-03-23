@@ -1,6 +1,7 @@
-from typing import NamedTuple, Any, List, Optional
+from typing import NamedTuple, Any, List
 
 ItemType = Any  # or Dict[str, Any] or Tuple[str, Any]?
+
 
 # Each log entry consists of a term number and an item
 class LogEntry(NamedTuple):
@@ -15,7 +16,7 @@ Log = List[LogEntry]
 def append_entries(log: Log, prev_index: int, prev_term: int, entries: List[ItemType]) -> bool:
     """
     Note that indexes are 1-based, as in the paper.
-    
+
     When appending at the beginning of the log, use prev_index=0, and prev_term is ignored.
     """
     if prev_index != 0:
@@ -35,10 +36,10 @@ def append_entries(log: Log, prev_index: int, prev_term: int, entries: List[Item
             return False
     # At this point, the preconditions have been satisfied, and we are going
     # to write the entries to the log.
-    extant_entries = log[prev_index:prev_index + len(entries)]
+    extant_entries = log[prev_index : prev_index + len(entries)]
     if extant_entries != entries:
         # See (3) from figure 2 ("Receiver implementation") in the raft paper.
         del log[prev_index:]
-    log[prev_index:prev_index+len(entries)] = entries
-        
+    log[prev_index : prev_index + len(entries)] = entries
+
     return True

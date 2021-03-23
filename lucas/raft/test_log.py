@@ -1,4 +1,3 @@
-from typing import Tuple
 from log import LogEntry, append_entries as orig_append_entries, Log
 
 import pytest
@@ -34,9 +33,7 @@ def test_append_valid():
             prev_term = 0
         else:
             prev_term = log[prev_index - 1].term
-        assert append_entries(
-            log=log, prev_index=prev_index, prev_term=prev_term, entries=[entry]
-        )
+        assert append_entries(log=log, prev_index=prev_index, prev_term=prev_term, entries=[entry])
         assert log == entries[:i]
 
 
