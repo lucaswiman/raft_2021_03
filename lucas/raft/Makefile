@@ -7,4 +7,4 @@ lint:
 
 .PHONY: test
 test:
-	pytest -vv $(TEST)
+	pytest --cov=. --cov-branch --cov-report=term-missing -vv $(TEST)
