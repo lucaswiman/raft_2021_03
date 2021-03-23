@@ -41,3 +41,10 @@ def test_append_deletes_subsequent_entries():
     ]
     append_entries(log=log, prev_index=0, prev_term=0, entries=[LogEntry(10, "foo")])
     assert log == [LogEntry(10, "foo")]
+    log = [
+        LogEntry(1, "x"),
+        LogEntry(1, "y"),
+        LogEntry(2, "z"),
+    ]
+    append_entries(log=log, prev_index=1, prev_term=1, entries=[LogEntry(10, "foo")])
+    assert log == [LogEntry(1, "x"), LogEntry(10, "foo")]

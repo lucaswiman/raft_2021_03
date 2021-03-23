@@ -35,7 +35,7 @@ def append_entries(log: Log, prev_index: int, prev_term: int, entries: List[Item
             return False
     # At this point, the preconditions have been satisfied, and we are going
     # to write the entries to the log.
-    extant_entries = entries[prev_index:prev_index + len(entries)]
+    extant_entries = log[prev_index:prev_index + len(entries)]
     if extant_entries != entries:
         # See (3) from figure 2 ("Receiver implementation") in the raft paper.
         del log[prev_index:]
