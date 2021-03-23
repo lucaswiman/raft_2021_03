@@ -95,9 +95,9 @@ Figure 7 to a set of unit tests.  For each these tests, you are
 performing the following operation on different logs (a-f):
 
 ```
-# Append entry from term=8 at prev_index=11, prev_term=6
+# Append entry from term=8 at prev_index=10, prev_term=6
 # Note: This assumes 1-based indexing like in the paper.
-append_entries(log, 11, 6, [ LogEntry(8, "x") ])
+append_entries(log, 10, 6, [ LogEntry(8, "x") ])
 ```
 
 The result of doing this for Figure 7 is as follows:
