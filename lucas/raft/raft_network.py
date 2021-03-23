@@ -49,11 +49,11 @@ class Node(RaftNode):
 
 
 class MockNetwork(Network):
-    num_servers: int
+    num_nodes: int
     nodes: Dict[int, RaftNode]
 
-    def __init__(self, num_servers, random=random.random()):
-        self.num_servers: int = num_servers
+    def __init__(self, num_servers, random=random):
+        self.num_nodes: int = num_servers
         self.nodes: Dict[int, RaftNode] = {}
         self.server_to_messages: Dict[int, List[bytes]] = {}
         self.shuffle_messages = False
@@ -64,6 +64,15 @@ class MockNetwork(Network):
 
     def __repr__(self):
         return f"MockNetwork({self.num_servers})"
+
+    def disable(self, node_id: int):
+        self.disabled_nodes.add(node_id)
+
+    def enable(self, node_id: int):
+        try:
+            self.disabled_nodes.remove(node_id)
+        except KeyError:
+            pass
 
     def create_node(self, node_id) -> RaftNode:
         if node_id not in range(self.num_nodes):
