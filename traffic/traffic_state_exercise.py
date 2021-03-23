@@ -81,6 +81,7 @@ def simulate():
             if next_state in seen:
                 continue
             states.append(next_state)
+    print(len(seen))
 
 
 if __name__ == "__main__":
