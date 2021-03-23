@@ -40,7 +40,7 @@ def test_append_valid():
         assert log == entries[:i]
 
 
-def test_append_empty():
+def test_append_noops():
     orig_log = [
         LogEntry(1, "x"),
         LogEntry(1, "y"),
@@ -49,8 +49,20 @@ def test_append_empty():
     log = list(orig_log)
     assert append_entries(log=log, prev_index=0, prev_term=0, entries=[])
     assert log == orig_log
+    assert append_entries(log=log, prev_index=0, prev_term=0, entries=orig_log[0:1])
+    assert log == orig_log
+    assert append_entries(log=log, prev_index=0, prev_term=0, entries=orig_log[0:2])
+    assert log == orig_log
+    assert append_entries(log=log, prev_index=0, prev_term=0, entries=orig_log[0:3])
+    assert log == orig_log
+
     assert append_entries(log=log, prev_index=1, prev_term=1, entries=[])
     assert log == orig_log
+    assert append_entries(log=log, prev_index=1, prev_term=1, entries=orig_log[1:2])
+    assert log == orig_log
+    assert append_entries(log=log, prev_index=1, prev_term=1, entries=orig_log[1:3])
+    assert log == orig_log
+
     assert append_entries(log=log, prev_index=2, prev_term=1, entries=[])
     assert log == orig_log
     assert append_entries(log=log, prev_index=3, prev_term=2, entries=[])
