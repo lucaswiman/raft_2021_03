@@ -1,7 +1,11 @@
-import queue
+import re, queue
 from typing import List
 
+import pytest
+
 from raft_core import Message, RaftConfig, RaftServer
+from log import LogEntry
+from test_log import FIG_7_EXAMPLES, gen_log
 
 
 def process_message(server: RaftServer, servers) -> bool:
@@ -57,3 +61,47 @@ def test_leader_append_entries():
     assert do_messages_events(servers) == 0
     leader.send_append_entries()
     assert do_messages_events(servers) > 0
+
+
+def PE(s):
+    """
+    Construct a log entry from the paper's style of entries 1:x<-0.
+
+    PE = Paper Entry
+    """
+    entries = []
+    for entry in s.split(","):
+        [(term, var, value)] = re.findall(r"(\d+):(\w+)<-(\d+)", entry)
+        entries.append(LogEntry(term, {var: value}))
+    return entries
+
+
+FIGURE_6_ENTRIES = [
+    PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0,3:y<-7,3:x<-5,3:x<-4"),
+    PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0"),
+    PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0,3:y<-7,3:x<-5,3:x<-4"),
+    PE("1:x<-3,1:y<-1"),
+    PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0,3:y<-7,3:x<-5"),
+]
+
+
+# Since dict order is preserved, the first entry (LEADER) is the first entry here as well.
+FIGURE_7_ENTRIES = [gen_log(entries) for entries in FIG_7_EXAMPLES.values()]
+
+
+@pytest.mark.parametrize(
+    "all_entries",
+    [FIGURE_6_ENTRIES, FIGURE_7_ENTRIES],
+)
+def test_figures_synchronize(all_entries):
+    config = RaftConfig([str(i + 1) for i in range(len(all_entries))])
+    leader, *followers = servers = config.build_servers()
+    for server, entries in zip(servers, all_entries):
+        server.log = entries
+        server.current_term = max(entry.term for entry in entries)
+    leader.next_index = [len(leader.log) for _ in servers]
+    leader.match_index = [0 if server != leader else 1 for server in servers]
+    leader.send_append_entries()
+    do_messages_events(servers)
+    for server in servers:
+        assert server.log == leader.log

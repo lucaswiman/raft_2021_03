@@ -40,6 +40,7 @@ class Message:
     recipient_id: int
     method_name: RPCMethod
     args: dict  # should be json-serializable
+    current_term: int = 1
 
     @classmethod
     def from_bytes(cls, b: bytes):
@@ -123,6 +124,7 @@ class RaftServer:
                 sender_id=self.id,
                 recipient_id=peer,
                 method_name="follower_append_entries",
+                current_term=self.current_term,
                 args={
                     "prev_index": prev_index,
                     "prev_term": prev_term,
@@ -153,6 +155,7 @@ class RaftServer:
                 recipient_id=sender_id,
                 method_name="leader_append_entries_response",
                 args={"match_index": match_index},
+                current_term=self.current_term,
             )
         )
 
