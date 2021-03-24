@@ -1,9 +1,45 @@
-from raft_core import RaftConfig
+import queue
+from typing import List
+
+from raft_core import RaftConfig, RaftServer
+
+
+def process_message(server: RaftServer) -> bool:
+    try:
+        message = server.outgoing_messages.get_nowait()
+    except queue.Empty:
+        return False
+    # Simulate a network roundtrip to exercise serialization/deserialization:
+    message = Message.from_bytes(bytes(message))
+    servers[message.recipient_id].events.put(message)
+    return True
+
+
+def process_event(server: RaftServer) -> bool:
+    try:
+        event = server.events.get_nowait()
+    except queue.Empty:
+        return False
+    server.process_event(event)
+    return True
+
+
+def do_messages_events(servers: List[RaftServer], max_steps=1000) -> int:
+    steps = 0
+    while steps < max_steps:
+        prev_steps = steps
+        for server in servers:
+            steps += process_message(server)
+        for server in servers:
+            steps += process_event(server)
+        if prev_steps == steps:  # did no work
+            break
+    return steps
 
 
 def test_leader_append_entries():
     config = RaftConfig(["1", "2"])
-    leader, follower = config.build_servers()
+    leader, follower = servers = config.build_servers()
     assert len(leader.log) == 0
     leader.client_add_entry("foo")
     assert len(leader.log) == 1
@@ -16,3 +52,6 @@ def test_leader_append_entries():
     assert leader.log[1].term == leader.current_term
     assert leader.log[1].item == "bar"
     assert leader.next_index == [3, 1]
+
+    # Nothing to do yet.
+    assert do_messages_events(servers) == 0
