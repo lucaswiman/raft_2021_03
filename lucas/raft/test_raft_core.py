@@ -1,4 +1,4 @@
-import re, queue
+import copy, re, queue
 from typing import List
 
 import pytest
@@ -72,7 +72,7 @@ def PE(s):
     entries = []
     for entry in s.split(","):
         [(term, var, value)] = re.findall(r"(\d+):(\w+)<-(\d+)", entry)
-        entries.append(LogEntry(term, {var: value}))
+        entries.append(LogEntry(int(term), {var: value}))
     return entries
 
 
@@ -90,18 +90,30 @@ FIGURE_7_ENTRIES = [gen_log(entries) for entries in FIG_7_EXAMPLES.values()]
 
 
 @pytest.mark.parametrize(
-    "all_entries",
-    [FIGURE_6_ENTRIES, FIGURE_7_ENTRIES],
+    "all_entries,leader_term",
+    [(FIGURE_6_ENTRIES, 3), (FIGURE_7_ENTRIES, 8)],
 )
-def test_figures_synchronize(all_entries):
+def test_figures_synchronize(all_entries, leader_term):
+    all_entries = copy.deepcopy(all_entries)[:2]
     config = RaftConfig([str(i + 1) for i in range(len(all_entries))])
     leader, *followers = servers = config.build_servers()
     for server, entries in zip(servers, all_entries):
         server.log = entries
         server.current_term = max(entry.term for entry in entries)
-    leader.next_index = [len(leader.log) for _ in servers]
-    leader.match_index = [0 if server != leader else 1 for server in servers]
+    leader.current_term = leader_term
+    leader.next_index = [len(leader.log) + 1 for _ in servers]
+    leader.match_index = [0 if server != leader else len(leader.log) for server in servers]
     leader.send_append_entries()
     do_messages_events(servers)
+    for server in servers:
+        # Note that in figure 7, (c) has a longer history than the leader,
+        # which does not get overwritten when log updates propagate.
+        assert len(server.log) >= len(leader.log)
+        assert server.log[: len(leader.log)] == leader.log
+    # However, once there's a novel entry on the leader, all logs should
+    # eventually be the same.
+    leader.client_add_entry("foo")
+    leader.send_append_entries()
+    do_messages_events(servers, max_steps=1000)
     for server in servers:
         assert server.log == leader.log

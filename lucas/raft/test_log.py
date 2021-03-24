@@ -96,7 +96,7 @@ FIG_7_EXAMPLES = {
 
 
 def gen_log(term_numbers) -> Log:
-    return [LogEntry(term, term) for term in term_numbers]
+    return [LogEntry(term, i) for i, term in enumerate(term_numbers)]
 
 
 @pytest.mark.parametrize(
