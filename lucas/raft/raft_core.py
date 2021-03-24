@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json, queue
 from dataclasses import asdict, dataclass, field
-from typing import List, Literal, Optional, Union
+from typing import cast, List, Literal, Optional, Union
 
 from log import LogEntry, ItemType, append_entries
 
@@ -74,7 +74,12 @@ class RaftServer:
         if isinstance(event, ClockTick):
             raise NotImplementedError()
         elif isinstance(event, Message):
-            raise NotImplementedError()
+            message = cast(Message, event)
+            if message.method_name not in RPC_METHODS:
+                raise ValueError(f"Unhandled method {message.method_name=}")
+            else:
+                getattr(self, message.method_name)(sender_id=message.sender_id, **message.args)
+
         else:
             raise TypeError(type(event))
 
