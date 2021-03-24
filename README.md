@@ -97,7 +97,7 @@ Video from the live session will be posted here.
 * [Project 2](https://vimeo.com/527559974/17e5af8a95) (21 min)
 * [Project 2](https://vimeo.com/527560154/d66b828452) (9 min)
 
-**Day 3**
+**Day 2**
 
 * [Project 3](https://vimeo.com/528078169/3bbc8833ab) (21 min)
 * [TLA+/Project 4](https://vimeo.com/528078345/554cf766f5) (60 min)
