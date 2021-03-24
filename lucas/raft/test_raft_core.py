@@ -94,7 +94,7 @@ FIGURE_7_ENTRIES = [gen_log(entries) for entries in FIG_7_EXAMPLES.values()]
     [(FIGURE_6_ENTRIES, 3), (FIGURE_7_ENTRIES, 8)],
 )
 def test_figures_synchronize(all_entries, leader_term):
-    all_entries = copy.deepcopy(all_entries)[:2]
+    all_entries = copy.deepcopy(all_entries)
     config = RaftConfig([str(i + 1) for i in range(len(all_entries))])
     leader, *followers = servers = config.build_servers()
     for server, entries in zip(servers, all_entries):
