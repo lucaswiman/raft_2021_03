@@ -112,7 +112,11 @@ class RaftServer:
     def send_append_entries_to_peer(self, peer):
         next_index = self.next_index[peer]
         prev_index = next_index - 1
-        prev_entry = self.log[prev_index - 1]
+        assert prev_index >= 0
+        if prev_index == 0:
+            prev_term = 0
+        else:
+            prev_term = self.log[prev_index - 1].term
         new_entries = self.log[next_index - 1 :]
         self.outgoing_messages.put(
             Message(
@@ -121,7 +125,7 @@ class RaftServer:
                 method_name="follower_append_entries",
                 args={
                     "prev_index": prev_index,
-                    "prev_term": prev_entry.term,
+                    "prev_term": prev_term,
                     "entries": [entry._asdict() for entry in new_entries],
                 },
             )
