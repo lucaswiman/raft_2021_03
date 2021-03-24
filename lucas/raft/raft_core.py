@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json, queue
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import List, Literal, Optional, Union
 
 from log import LogEntry, ItemType, append_entries
@@ -42,10 +42,10 @@ class Message:
 
     @classmethod
     def from_bytes(cls, b: bytes):
-        return json.loads(b.decode("utf-8"))
+        return cls(**json.loads(b.decode("utf-8")))
 
     def __bytes__(self):
-        return json.dumps(self.asdict()).encode("utf-8")
+        return json.dumps(asdict(self)).encode("utf-8")
 
 
 @dataclass
@@ -107,7 +107,7 @@ class RaftServer:
                 args={
                     "prev_index": prev_index,
                     "prev_term": prev_entry.term,
-                    "entries": [entry.asdict() for entry in new_entries],
+                    "entries": [entry._asdict() for entry in new_entries],
                 },
             )
         )

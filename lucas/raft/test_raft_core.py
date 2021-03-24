@@ -1,10 +1,10 @@
 import queue
 from typing import List
 
-from raft_core import RaftConfig, RaftServer
+from raft_core import Message, RaftConfig, RaftServer
 
 
-def process_message(server: RaftServer) -> bool:
+def process_message(server: RaftServer, servers) -> bool:
     try:
         message = server.outgoing_messages.get_nowait()
     except queue.Empty:
@@ -15,7 +15,7 @@ def process_message(server: RaftServer) -> bool:
     return True
 
 
-def process_event(server: RaftServer) -> bool:
+def process_event(server: RaftServer, servers) -> bool:
     try:
         event = server.events.get_nowait()
     except queue.Empty:
@@ -29,9 +29,9 @@ def do_messages_events(servers: List[RaftServer], max_steps=1000) -> int:
     while steps < max_steps:
         prev_steps = steps
         for server in servers:
-            steps += process_message(server)
+            steps += process_message(server, servers)
         for server in servers:
-            steps += process_event(server)
+            steps += process_event(server, servers)
         if prev_steps == steps:  # did no work
             break
     return steps
@@ -55,3 +55,5 @@ def test_leader_append_entries():
 
     # Nothing to do yet.
     assert do_messages_events(servers) == 0
+    leader.send_append_entries()
+    assert do_messages_events(servers) > 0
