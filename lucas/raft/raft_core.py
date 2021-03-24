@@ -17,6 +17,7 @@ class RaftConfig:
             RaftServer(
                 id=id,
                 next_index=[1] * len(self.addresses),  # 1-indexed
+                match_index=[0] * len(self.addresses),
                 is_leader=(id == self.initial_leader),
                 log=[],
             )
@@ -59,7 +60,16 @@ Event = Union[Message, ClockTick]
 @dataclass
 class RaftServer:
     id: int
+
+    # From the spec:
+    # > for each server, index of the next log entry to send to that server
+    # > (initialized to leader last log index + 1)
     next_index: List[int]
+
+    # From the spec:
+    # > for each server, index of highest log entry known to be replicated on
+    # > server (initialized to 0, increases monotonically)
+    match_index: List[int]
     is_leader: bool
     log: List[LogEntry]
     current_term: int = 1
@@ -129,23 +139,25 @@ class RaftServer:
         success = append_entries(
             self.log, prev_index, prev_term, [LogEntry(**entry) for entry in entries]
         )
-        next_index: Optional[int] = None
+        match_index: Optional[int] = None
         if success:
-            next_index = prev_index + len(entries) + 1
+            # https://github.com/ongardie/raft.tla/blob/974fff7236545912c035ff8041582864449d0ffe/raft.tla#L368-L369
+            match_index = prev_index + len(entries)
         self.outgoing_messages.put(
             Message(
                 sender_id=self.id,
                 recipient_id=sender_id,
                 method_name="leader_append_entries_response",
-                args={"next_index": next_index},
+                args={"match_index": match_index},
             )
         )
 
-    def leader_append_entries_response(self, sender_id: int, next_index: Optional[int]):
+    def leader_append_entries_response(self, sender_id: int, match_index: Optional[int]):
         # Process an AppendEntriesResponse message sent by a follower
-        if next_index is not None:
+        if match_index is not None:
             # AppendEntries on msg.source worked!
-            self.next_index[sender_id] = next_index
+            self.next_index[sender_id] = match_index + 1
+            self.match_index[sender_id] = match_index
         else:
             self.next_index[sender_id] -= 1
             self.send_append_entries_to_peer(sender_id)
