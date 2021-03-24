@@ -58,6 +58,19 @@ class ClockTick:
 Event = Union[Message, ClockTick]
 
 
+def compute_commit_index(match_index: List[int]):
+    """
+    Compute the commit index as the largest MatchIndex present on a majority of servers.
+
+    This is _almost_ the median, unless the list has an even length.
+    """
+    sorted_indexes = sorted(match_index, reverse=True)
+    # There would be a +1 here to get the index representing the majority,
+    # but since python is 0-indexed, it gets subtracted away.
+    # e.g. for n=2, we want the 2nd index, which is 1.
+    return sorted_indexes[len(sorted_indexes) // 2]
+
+
 @dataclass
 class RaftServer:
     id: int
@@ -74,6 +87,7 @@ class RaftServer:
     is_leader: bool
     log: List[LogEntry]
     current_term: int = 1
+    commit_index: int = 0
     outgoing_messages: queue.Queue[Message] = field(default_factory=queue.Queue)
     events: queue.Queue[Event] = field(default_factory=queue.Queue)
 
@@ -102,6 +116,9 @@ class RaftServer:
             prev_index, prev_term, [LogEntry(term=self.current_term, item=item)]
         )
 
+    def leader_set_commit_index(self):
+        self.commit_index = compute_commit_index(self.match_index)
+
     def leader_append_entries(self, prev_index: int, prev_term: int, entries: List[LogEntry]):
         if not self.is_leader:
             # In the paper, a follower should direct this to the leader
@@ -129,6 +146,7 @@ class RaftServer:
                     "prev_index": prev_index,
                     "prev_term": prev_term,
                     "entries": [entry._asdict() for entry in new_entries],
+                    "commit_index": self.commit_index,
                 },
             )
         )
@@ -139,7 +157,12 @@ class RaftServer:
             self.send_append_entries_to_peer(peer)
 
     def follower_append_entries(
-        self, sender_id: int, prev_index: int, prev_term: int, entries: List[dict]
+        self,
+        sender_id: int,
+        prev_index: int,
+        prev_term: int,
+        entries: List[dict],
+        commit_index: int,
     ):
         # Process an AppendEntries messages sent by the leader
         success = append_entries(
@@ -161,10 +184,14 @@ class RaftServer:
 
     def leader_append_entries_response(self, sender_id: int, match_index: Optional[int]):
         # Process an AppendEntriesResponse message sent by a follower
+        if not self.is_leader:
+            # Probably an old message and I've been voted off the island.
+            return
         if match_index is not None:
             # AppendEntries on msg.source worked!
             self.next_index[sender_id] = match_index + 1
             self.match_index[sender_id] = match_index
+            self.leader_set_commit_index()
         else:
             self.next_index[sender_id] -= 1
             self.send_append_entries_to_peer(sender_id)

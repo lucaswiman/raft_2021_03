@@ -3,7 +3,7 @@ from typing import List
 
 import pytest
 
-from raft_core import Message, RaftConfig, RaftServer
+from raft_core import Message, RaftConfig, RaftServer, compute_commit_index
 from log import LogEntry
 from test_log import FIG_7_EXAMPLES, gen_log
 
@@ -117,3 +117,13 @@ def test_figures_synchronize(all_entries, leader_term):
     do_messages_events(servers, max_steps=1000)
     for server in servers:
         assert server.log == leader.log
+
+
+def test_compute_commit_index():
+    assert compute_commit_index([1]) == 1
+    assert compute_commit_index([1, 2]) == 1
+    assert compute_commit_index([2, 1]) == 1
+    assert compute_commit_index([2, 2]) == 2
+    assert compute_commit_index([1, 1, 3]) == 1
+    assert compute_commit_index([1, 2, 3]) == 2
+    assert compute_commit_index([2, 2, 3]) == 2
