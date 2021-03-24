@@ -28,6 +28,7 @@ RPCMethod = Literal[
     "follower_append_entries",
     "leader_append_entries_response",
     "leader_append_entries",
+    "client_add_entry",
 ]
 RPC_METHODS = frozenset(RPCMethod.__args__)  # type: ignore
 
@@ -61,7 +62,7 @@ class RaftServer:
     next_index: List[int]
     is_leader: bool
     log: List[LogEntry]
-    term: int = 1
+    current_term: int = 1
     outgoing_messages: queue.Queue[Message] = field(default_factory=queue.Queue)
     events: queue.Queue[Event] = field(default_factory=queue.Queue)
 
@@ -77,14 +78,20 @@ class RaftServer:
         else:
             raise TypeError(type(event))
 
-    def leader_append_entries(self, prev_index: int, prev_term: int, items: ItemType):
+    def client_add_entry(self, item: ItemType):
+        next_index = self.next_index[self.id]
+        prev_index = next_index - 1
+        prev_term = self.log[-1].term if self.log else 0
+        return self.leader_append_entries(
+            prev_index, prev_term, [LogEntry(term=self.current_term, item=item)]
+        )
+
+    def leader_append_entries(self, prev_index: int, prev_term: int, entries: List[LogEntry]):
         if not self.is_leader:
             # In the paper, a follower should direct this to the leader
             raise ValueError("Must be leader to call this method.")
-        entries = [LogEntry(term=self.term, item=item) for item in items]
         success = append_entries(self.log, prev_index, prev_term, entries)
         self.next_index[self.id] = len(self.log) + 1
-        self.send_append_entries()
         return success
 
     def send_append_entries_to_peer(self, peer):
