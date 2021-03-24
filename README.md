@@ -97,6 +97,14 @@ Video from the live session will be posted here.
 * [Project 2](https://vimeo.com/527559974/17e5af8a95) (21 min)
 * [Project 2](https://vimeo.com/527560154/d66b828452) (9 min)
 
+**Day 3**
+
+* [Project 3](https://vimeo.com/528078169/3bbc8833ab) (21 min)
+* [TLA+/Project 4](https://vimeo.com/528078345/554cf766f5) (60 min)
+* [Project 4](https://vimeo.com/528078814/b36de25e98) (23 min)
+* [Project 4/5](https://vimeo.com/528078969/c92770353d) (30 min)
+* [Project 5/6](https://vimeo.com/528079223/f1cb61b29d) (30 min)
+
 ## Preparation Exercises
 
 The following project covers some background material related to socket
