@@ -18,8 +18,8 @@ class RaftConfig:
                 id=id,
                 next_index=[1] * len(self.addresses),  # 1-indexed
                 match_index=[0] * len(self.addresses),
-                is_leader=(id == self.initial_leader),
                 log=[],
+                role=("LEADER" if id == self.initial_leader else "FOLLOWER"),
             )
             for id, address in enumerate(self.addresses)
         ]
@@ -71,6 +71,9 @@ def compute_commit_index(match_index: List[int]):
     return sorted_indexes[len(sorted_indexes) // 2]
 
 
+RoleName = Literal["LEADER", "FOLLOWER", "CANDIDATE"]
+
+
 @dataclass
 class RaftServer:
     id: int
@@ -84,7 +87,7 @@ class RaftServer:
     # > for each server, index of highest log entry known to be replicated on
     # > server (initialized to 0, increases monotonically)
     match_index: List[int]
-    is_leader: bool
+    role: RoleName
     log: List[LogEntry]
     current_term: int = 1
     _commit_index: int = 0
@@ -93,6 +96,10 @@ class RaftServer:
 
     application_index: int = 0
     applications: queue.Queue[List[ItemType]] = field(default_factory=queue.Queue)
+
+    @property
+    def is_leader(self) -> bool:
+        return self.role == "LEADER"
 
     @property
     def peers(self):
