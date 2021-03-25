@@ -26,6 +26,8 @@ RPCMethod = Literal[
     "leader_append_entries_response",
     "leader_append_entries",
     "client_add_entry",
+    "request_vote",
+    "request_vote_response",
 ]
 RPC_METHODS = frozenset(RPCMethod.__args__)  # type: ignore
 
@@ -281,8 +283,28 @@ class RaftServer:
             self.next_index[sender_id] -= 1
             self.send_append_entries_to_peer(sender_id)
 
+    def request_vote_from_peer(self, peer: int):
+        last_log_index = len(self.log)
+        if last_log_index == 0:
+            last_log_term = 0
+        else:
+            last_log_term = self.log[last_log_index - 1].term
+        self.outgoing_messages.put(
+            Message(
+                sender_id=self.id,
+                recipient_id=peer,
+                method_name="request_vote",
+                args={
+                    "last_log_index": last_log_index,
+                    "last_log_term": last_log_term,
+                },
+                current_term=self.current_term,
+            )
+        )
+
     def candidate_request_votes(self):
-        ...
+        for peer in self.peers:
+            self.request_vote_from_peer(peer)
 
     def request_vote(self, sender_id, last_log_index: int, last_log_term: int):
         ...
