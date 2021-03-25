@@ -105,6 +105,14 @@ Video from the live session will be posted here.
 * [Project 4/5](https://vimeo.com/528078969/c92770353d) (30 min)
 * [Project 5/6](https://vimeo.com/528079223/f1cb61b29d) (30 min)
 
+**Day 3**
+
+* [Project 6](https://vimeo.com/528592247/85bf2434a3) (42 min)
+* [Project 6](https://vimeo.com/528592576/6cb15a5c01) (14 min)
+* [Project 7](https://vimeo.com/528592705/4f5cf3d943) (30 min)
+* [Project 7](https://vimeo.com/528592919/b9a9c75fb7) (37 min)
+
+
 ## Preparation Exercises
 
 The following project covers some background material related to socket
