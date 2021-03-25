@@ -213,11 +213,6 @@ def test_figure_6_election():
         do_messages_events(servers)
         assert server.is_leader
 
-    # PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0,3:y<-7,3:x<-5,3:x<-4"),
-    # PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0"),
-    # PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0,3:y<-7,3:x<-5,3:x<-4"),
-    # PE("1:x<-3,1:y<-1"),
-    # PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0,3:y<-7,3:x<-5"),
     for index in [1, 3]:
         # These should lose the election, for all subsets of servers.
         servers = build()
