@@ -10,18 +10,19 @@ from log import LogEntry
 from test_log import FIG_7_EXAMPLES, gen_log
 
 
-def process_message(server: RaftServer, servers) -> bool:
+def process_message(server: RaftServer, servers, exclude=None) -> bool:
     try:
         message = server.outgoing_messages.get_nowait()
     except queue.Empty:
         return False
     # Simulate a network roundtrip to exercise serialization/deserialization:
     message = Message.from_bytes(bytes(message))
-    servers[message.recipient_id].events.put(message)
+    if message.recipient_id not in (exclude or ()):
+        servers[message.recipient_id].events.put(message)
     return True
 
 
-def process_event(server: RaftServer, servers) -> bool:
+def process_event(server: RaftServer, servers, exclude=None) -> bool:
     try:
         event = server.events.get_nowait()
     except queue.Empty:
@@ -37,11 +38,11 @@ def do_messages_events(servers: List[RaftServer], max_steps=1000, exclude=None) 
         for i, server in enumerate(servers):
             if i in (exclude or ()):
                 continue
-            steps += process_message(server, servers)
+            steps += process_message(server, servers, exclude)
         for i, server in enumerate(servers):
             if i in (exclude or ()):
                 continue
-            steps += process_event(server, servers)
+            steps += process_event(server, servers, exclude)
         if prev_steps == steps:  # did no work
             break
     return steps
@@ -243,3 +244,7 @@ def test_figure_6_election():
     assert server.role == "CANDIDATE"
     do_messages_events(servers, exclude={1, 3})
     assert server.role == "CANDIDATE"
+
+
+def test_figure_8():
+    ...
