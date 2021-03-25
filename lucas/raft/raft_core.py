@@ -333,6 +333,9 @@ class RaftServer:
         )
 
     def request_vote_response(self, sender_id, vote: bool):
+        if self.role != "CANDIDATE":
+            # A delayed vote after winning the election.
+            return
         votes = cast(Dict, self.votes)
         votes[sender_id] = vote
         if sum(votes.values()) > self.num_servers // 2:

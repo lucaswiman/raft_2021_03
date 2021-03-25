@@ -30,13 +30,17 @@ def process_event(server: RaftServer, servers) -> bool:
     return True
 
 
-def do_messages_events(servers: List[RaftServer], max_steps=1000) -> int:
+def do_messages_events(servers: List[RaftServer], max_steps=1000, exclude=None) -> int:
     steps = 0
     while steps < max_steps:
         prev_steps = steps
-        for server in servers:
+        for i, server in enumerate(servers):
+            if i in (exclude or ()):
+                continue
             steps += process_message(server, servers)
-        for server in servers:
+        for i, server in enumerate(servers):
+            if i in (exclude or ()):
+                continue
             steps += process_event(server, servers)
         if prev_steps == steps:  # did no work
             break
@@ -188,3 +192,54 @@ def test_become_follower_on_higher_term_number():
     assert s2.is_leader  # won the election.
     assert not s1.is_leader  # lost the election after receiving a heartbeat.
     assert s1.role == "FOLLOWER"
+
+
+def test_figure_6_election():
+    def build():
+        all_entries = copy.deepcopy(FIGURE_6_ENTRIES)
+        config = RaftConfig([str(i + 1) for i in range(len(all_entries))])
+        servers = config.build_servers()
+        for server, entries in zip(servers, all_entries):
+            server.log = entries
+            server.current_term = max(entry.term for entry in entries)
+        return servers
+
+    # Servers 0 and 2 should _always_ win, even if they get all votes.
+    for index in [0, 2]:
+        servers = build()
+        server = servers[index]
+        server.become_candidate()
+        assert server.role == "CANDIDATE"
+        do_messages_events(servers)
+        assert server.is_leader
+
+    # PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0,3:y<-7,3:x<-5,3:x<-4"),
+    # PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0"),
+    # PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0,3:y<-7,3:x<-5,3:x<-4"),
+    # PE("1:x<-3,1:y<-1"),
+    # PE("1:x<-3,1:y<-1,1:y<-9,2:x<-2,3:x<-0,3:y<-7,3:x<-5"),
+    for index in [1, 3]:
+        # These should lose the election, for all subsets of servers.
+        servers = build()
+        server = servers[index]
+        server.become_candidate()
+        assert server.role == "CANDIDATE"
+        do_messages_events(servers)
+        assert server.role == "CANDIDATE"
+
+    # Server 4 can gain a quorum with 1,3:
+    servers = build()
+    server = servers[4]
+    server.become_candidate()
+    assert server.role == "CANDIDATE"
+    # Simulates a network partition preventing communication with 0, 2.
+    do_messages_events(servers, exclude={0, 2})
+    assert server.role == "LEADER"
+
+    # But not with 0,2:
+    servers = build()
+    server = servers[4]
+    server.become_candidate()
+    assert server.role == "CANDIDATE"
+    do_messages_events(servers, exclude={1, 3})
+    assert server.role == "CANDIDATE"
