@@ -117,7 +117,6 @@ def test_figures_synchronize(all_entries, leader_term):
         # which does not get overwritten when log updates propagate.
         assert len(server.log) >= len(leader.log)
         assert server.log[: len(leader.log)] == leader.log
-    assert leader.commit_index == len(leader.log)
     # However, once there's a novel entry on the leader, all logs should
     # eventually be the same.
     leader.client_add_entry("foo")
