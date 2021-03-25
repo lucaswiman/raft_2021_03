@@ -87,9 +87,12 @@ class RaftServer:
     is_leader: bool
     log: List[LogEntry]
     current_term: int = 1
-    commit_index: int = 0
+    _commit_index: int = 0
     outgoing_messages: queue.Queue[Message] = field(default_factory=queue.Queue)
     events: queue.Queue[Event] = field(default_factory=queue.Queue)
+
+    application_index: int = 0
+    applications: queue.Queue[List[ItemType]] = field(default_factory=queue.Queue)
 
     @property
     def peers(self):
@@ -115,6 +118,18 @@ class RaftServer:
         return self.leader_append_entries(
             prev_index, prev_term, [LogEntry(term=self.current_term, item=item)]
         )
+
+    @property
+    def commit_index(self):
+        return self._commit_index
+
+    @commit_index.setter
+    def commit_index(self, new_commit_index):
+        prev = self._commit_index
+        self._commit_index = new_commit_index
+        if prev != new_commit_index:
+            self.applications.put([entry.item for entry in self.log[prev:new_commit_index]])
+            self.application_index = new_commit_index
 
     def leader_set_commit_index(self):
         self.commit_index = compute_commit_index(self.match_index)
@@ -181,6 +196,7 @@ class RaftServer:
                 current_term=self.current_term,
             )
         )
+        self.commit_index = commit_index
 
     def leader_append_entries_response(self, sender_id: int, match_index: Optional[int]):
         # Process an AppendEntriesResponse message sent by a follower

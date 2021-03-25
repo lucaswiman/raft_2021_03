@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy, re, queue
 from typing import List
 
@@ -119,6 +121,49 @@ def test_figures_synchronize(all_entries, leader_term):
     for server in servers:
         assert server.log == leader.log
     assert leader.commit_index == len(leader.log)
+    assert leader.application_index == leader.commit_index
+
+
+class KVStore(dict):
+    def __init__(self, queue: queue.Queue[List[dict]]):
+        super().__init__()
+        self.queue = queue
+
+    def consume_once(self) -> int:
+        try:
+            items: List[dict] = self.queue.get_nowait()
+        except queue.Empty:
+            return 0
+        for item in items:
+            self.update(item)
+        return len(items)
+
+
+def test_kv_store():
+    config = RaftConfig([str(i + 1) for i in range(3)])
+    leader, *followers = servers = config.build_servers()
+    leader.client_add_entry({"foo": "bar"})
+    kv_stores = [KVStore(server.applications) for server in servers]
+
+    leader.send_append_entries()
+    do_messages_events(servers)
+    assert leader.application_index == 1
+    assert leader.applications.qsize() == 1
+    assert kv_stores[0].consume_once() == 1
+    assert kv_stores[0] == {"foo": "bar"}
+
+    for i, follower in enumerate(followers):
+        assert follower.application_index == 0
+        assert follower.applications.qsize() == 0
+        assert kv_stores[i].consume_once() == 0
+    leader.send_append_entries()
+    do_messages_events(servers)
+    for follower, kv_store in zip(followers, kv_stores[1:]):
+        assert follower.application_index == 1
+        assert follower.applications.qsize() == 1
+        assert follower.applications is kv_store.queue
+        assert kv_store.consume_once() == 1
+        assert kv_store == {"foo": "bar"}
 
 
 def test_compute_commit_index():
