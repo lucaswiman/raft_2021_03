@@ -101,6 +101,16 @@ class RaftServer:
     def is_leader(self) -> bool:
         return self.role == "LEADER"
 
+    def become_leader(self):
+        self.role = "LEADER"
+
+    def become_follower(self):
+        self.role = "FOLLOWER"
+
+    def become_candidate(self):
+        self.role = "CANDIDATE"
+        self.current_term += 1
+
     @property
     def peers(self):
         return [i for i, _ in enumerate(self.next_index) if i != self.id]
@@ -112,8 +122,19 @@ class RaftServer:
             message = cast(Message, event)
             if message.method_name not in RPC_METHODS:
                 raise ValueError(f"Unhandled method {message.method_name=}")
-            else:
-                getattr(self, message.method_name)(sender_id=message.sender_id, **message.args)
+
+            if message.current_term < self.current_term:
+                # Figure 2: all RPCs should be rejected if the message term is lower than
+                # the current term. #OldNews
+                # TODO: spec says "Reply false" if this case happens. Should this be a message?
+                return
+            elif message.current_term > self.current_term:
+                # Figure 4: The role state machine should transition to follower whenever it
+                # sees a higher term.
+                self.current_term = message.current_term
+                self.become_follower()
+
+            getattr(self, message.method_name)(sender_id=message.sender_id, **message.args)
 
         else:
             raise TypeError(type(event))

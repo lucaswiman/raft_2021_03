@@ -174,3 +174,19 @@ def test_compute_commit_index():
     assert compute_commit_index([1, 1, 3]) == 1
     assert compute_commit_index([1, 2, 3]) == 2
     assert compute_commit_index([2, 2, 3]) == 2
+
+
+def test_become_follower_on_higher_term_number():
+    config = RaftConfig([str(i + 1) for i in range(2)])
+    s1, s2 = servers = config.build_servers()
+    assert s1.is_leader
+    assert not s2.is_leader
+    assert s2.current_term == s1.current_term
+    s2.become_candidate()
+    assert s2.current_term > s1.current_term
+    s2.become_leader()
+    assert s2.is_leader
+    s2.send_append_entries()
+    do_messages_events(servers)
+    assert not s1.is_leader
+    assert s1.role == "FOLLOWER"
