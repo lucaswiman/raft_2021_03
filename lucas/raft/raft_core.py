@@ -56,7 +56,7 @@ class ClockTick:
 Event = Union[Message, ClockTick]
 
 
-def compute_commit_index(match_index: List[int]):
+def compute_majority_match_index(match_index: List[int]):
     """
     Compute the commit index as the largest MatchIndex present on a majority of servers.
 
@@ -115,6 +115,7 @@ class RaftServer:
         self.role = "LEADER"
         self.next_index = [len(self.log) + 1] * self.num_servers
         self.match_index = [0] * self.num_servers
+        self.match_index[self.id] = len(self.log)
         self.votes = None
 
     def become_follower(self):
@@ -177,11 +178,12 @@ class RaftServer:
     def client_add_entry(self, item: ItemType):
         if not self.is_leader:
             return False
-        if self.next_index is None:
+        if self.next_index is None or self.match_index is None:
             raise AssertionError("Bug!")
         next_index = self.next_index[self.id]
         prev_index = next_index - 1
         prev_term = self.log[-1].term if self.log else 0
+        self.match_index[self.id] = len(self.log)
         return self.leader_append_entries(
             prev_index, prev_term, [LogEntry(term=self.current_term, item=item)]
         )
@@ -199,16 +201,24 @@ class RaftServer:
             self.application_index = new_commit_index
 
     def leader_set_commit_index(self):
-        self.commit_index = compute_commit_index(self.match_index)
+        majority_match_index = compute_majority_match_index(self.match_index)
+        if majority_match_index > self.commit_index:
+            # This log entry has been replicated on a majority of servers.
+            # However, we cannot update the commit_index to a previous term's
+            # record. See "Figure 8" tests for reasoning why not.
+            if self.log[majority_match_index - 1].term < self.current_term:
+                return
+            self.commit_index = majority_match_index
 
     def leader_append_entries(self, prev_index: int, prev_term: int, entries: List[LogEntry]):
         if not self.is_leader:
             # In the paper, a follower should direct this to the leader
             raise ValueError("Must be leader to call this method.")
-        if self.next_index is None:
+        if self.next_index is None or self.match_index is None:
             raise AssertionError("Bug!")
         success = append_entries(self.log, prev_index, prev_term, entries)
         self.next_index[self.id] = len(self.log) + 1
+        self.match_index[self.id] = len(self.log)
         return success
 
     def send_append_entries_to_peer(self, peer):

@@ -5,7 +5,7 @@ from typing import List
 
 import pytest
 
-from raft_core import Message, RaftConfig, RaftServer, compute_commit_index
+from raft_core import Message, RaftConfig, RaftServer, compute_majority_match_index
 from log import LogEntry
 from test_log import FIG_7_EXAMPLES, gen_log
 
@@ -171,14 +171,14 @@ def test_kv_store():
         assert kv_store == {"foo": "bar"}
 
 
-def test_compute_commit_index():
-    assert compute_commit_index([1]) == 1
-    assert compute_commit_index([1, 2]) == 1
-    assert compute_commit_index([2, 1]) == 1
-    assert compute_commit_index([2, 2]) == 2
-    assert compute_commit_index([1, 1, 3]) == 1
-    assert compute_commit_index([1, 2, 3]) == 2
-    assert compute_commit_index([2, 2, 3]) == 2
+def test_compute_majority_match_index():
+    assert compute_majority_match_index([1]) == 1
+    assert compute_majority_match_index([1, 2]) == 1
+    assert compute_majority_match_index([2, 1]) == 1
+    assert compute_majority_match_index([2, 2]) == 2
+    assert compute_majority_match_index([1, 1, 3]) == 1
+    assert compute_majority_match_index([1, 2, 3]) == 2
+    assert compute_majority_match_index([2, 2, 3]) == 2
 
 
 def test_become_follower_on_higher_term_number():
@@ -246,5 +246,129 @@ def test_figure_6_election():
     assert server.role == "CANDIDATE"
 
 
-def test_figure_8():
-    ...
+def set_up_figure_8_c():
+    config = RaftConfig([str(i + 1) for i in range(5)], initial_leader=1)
+    s1, s2, s3, s4, s5 = servers = config.build_servers()
+    leader = s2
+    assert leader.is_leader
+    leader.client_add_entry({"x": 1})
+    leader.send_append_entries()
+    do_messages_events(servers)
+    leader.send_append_entries()
+    do_messages_events(servers)
+    assert [s.commit_index for s in servers] == [1, 1, 1, 1, 1]
+
+    assert leader.commit_index == 1
+    for server in servers:
+        server.log == [LogEntry(1, {"x": 1})]
+    s1.become_candidate()
+    do_messages_events(servers)
+    leader = s1
+    assert leader.is_leader
+    leader.client_add_entry({"x": 2})
+    leader.send_append_entries()
+    # Note the figure 1-indexes the servers, so this is excluding s3, s4, s5.
+    do_messages_events(servers, exclude={2, 3, 4})
+    assert leader.commit_index == 1
+
+    # The configuration should now be like in figure 8(a).
+    # The following assert the conditions of 8(a):
+    assert [s.commit_index for s in servers] == [1, 1, 1, 1, 1]
+    assert [s.log for s in servers] == [
+        [LogEntry(1, {"x": 1}), LogEntry(2, {"x": 2})],
+        [LogEntry(1, {"x": 1}), LogEntry(2, {"x": 2})],
+        [LogEntry(1, {"x": 1})],
+        [LogEntry(1, {"x": 1})],
+        [LogEntry(1, {"x": 1})],
+    ]
+
+    # Now construct a sequence of events that leads to 8(b):
+    s5.become_candidate()
+    # s5 should be elected by a quorum of the s3, s4, s5.
+    # They haven't replicated the second log entry.
+    do_messages_events(servers, exclude={0, 1})
+    assert s5.is_leader
+    leader = s5
+    assert leader.current_term == 3
+    s5.client_add_entry({"x": 3})
+    assert [s.commit_index for s in servers] == [1, 1, 1, 1, 1]
+    assert [s.log for s in servers] == [
+        [LogEntry(1, {"x": 1}), LogEntry(2, {"x": 2})],
+        [LogEntry(1, {"x": 1}), LogEntry(2, {"x": 2})],
+        [LogEntry(1, {"x": 1})],
+        [LogEntry(1, {"x": 1})],
+        [LogEntry(1, {"x": 1}), LogEntry(3, {"x": 3})],
+    ]
+    # Now construct a sequence of events that leads to 8(c):
+    leader = s5
+    assert leader.is_leader
+    s1.become_candidate()
+    # Hold an election excluding s4 and s5.
+    do_messages_events(servers, exclude={3, 4})
+    assert not s1.is_leader
+    # s1 lost because it has an out-of-date term.
+    s1.become_candidate()  # another election timeout
+    do_messages_events(servers, exclude={3, 4})
+    assert s1.is_leader
+    assert s1.current_term == 4
+    s1.send_append_entries()
+    do_messages_events(servers, exclude={3, 4})
+    s1.send_append_entries()
+    do_messages_events(servers, exclude={3, 4})
+    s1.client_add_entry({"x": 4})
+    assert s1.match_index[s1.id] == len(s1.log)
+    assert s1.is_leader
+    assert [s.commit_index for s in servers] == [1, 1, 1, 1, 1]
+    assert [s.log for s in servers] == [
+        [LogEntry(1, {"x": 1}), LogEntry(2, {"x": 2}), LogEntry(4, {"x": 4})],
+        [LogEntry(1, {"x": 1}), LogEntry(2, {"x": 2})],
+        [LogEntry(1, {"x": 1}), LogEntry(2, {"x": 2})],
+        [LogEntry(1, {"x": 1})],
+        [LogEntry(1, {"x": 1}), LogEntry(3, {"x": 3})],
+    ]
+    return servers
+
+
+def test_figure_8_e():
+    servers = s1, s2, s3, s4, s5 = set_up_figure_8_c()
+
+    # Now get to 8(e):
+    s1.send_append_entries()
+    do_messages_events(servers, exclude={3, 4})
+    s1.send_append_entries()
+
+    do_messages_events(servers, exclude={3, 4})
+    assert [s.commit_index for s in servers] == [3, 3, 3, 1, 1]
+    assert [s.log for s in servers] == [
+        [LogEntry(1, {"x": 1}), LogEntry(2, {"x": 2}), LogEntry(4, {"x": 4})],
+        [LogEntry(1, {"x": 1}), LogEntry(2, {"x": 2}), LogEntry(4, {"x": 4})],
+        [LogEntry(1, {"x": 1}), LogEntry(2, {"x": 2}), LogEntry(4, {"x": 4})],
+        [LogEntry(1, {"x": 1})],
+        [LogEntry(1, {"x": 1}), LogEntry(3, {"x": 3})],
+    ]
+
+
+def test_figure_8_d():
+    servers = s1, s2, s3, s4, s5 = set_up_figure_8_c()
+    # Now get to 8(d), wherein s5 will overwrite the values on all of the
+    # other servers for terms 2 and 4.
+
+    # s5 should lose the election since it will increment the term number to 4,
+    # and voted_for should be set on that term on the other servers. This is
+    # why voted_for is listed as non-volatile in Figure 2.
+    s5.become_candidate()
+    do_messages_events(servers, exclude={0})
+    assert s5.role == "CANDIDATE"
+    s5.become_candidate()  # another election timeout
+    do_messages_events(servers, exclude={0})
+    assert s5.is_leader
+    s5.send_append_entries()
+    do_messages_events(servers)
+    assert [s.commit_index for s in servers] == [1, 1, 1, 1, 1]
+    assert [s.log for s in servers] == [
+        [LogEntry(1, {"x": 1}), LogEntry(3, {"x": 3})],
+        [LogEntry(1, {"x": 1}), LogEntry(3, {"x": 3})],
+        [LogEntry(1, {"x": 1}), LogEntry(3, {"x": 3})],
+        [LogEntry(1, {"x": 1}), LogEntry(3, {"x": 3})],
+        [LogEntry(1, {"x": 1}), LogEntry(3, {"x": 3})],
+    ]
