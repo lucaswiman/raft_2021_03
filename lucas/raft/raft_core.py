@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json, queue
 from dataclasses import asdict, dataclass, field
-from typing import cast, List, Literal, Optional, Union
+from typing import cast, Dict, List, Literal, Optional, Tuple, Union
 
 from log import LogEntry, ItemType, append_entries
 
@@ -38,7 +38,7 @@ class Message:
     recipient_id: int
     method_name: RPCMethod
     args: dict  # should be json-serializable
-    current_term: int = 1
+    current_term: int
 
     @classmethod
     def from_bytes(cls, b: bytes):
@@ -97,7 +97,7 @@ class RaftServer:
 
     # For candidates to receive vote tallies. Not mentioned in figure 2, but implied by
     # needing to count votes.
-    votes: Optional[List[bool]] = None
+    votes: Optional[Dict[int, bool]] = None
 
     _current_term: int = 1
     _commit_index: int = 0
@@ -127,7 +127,7 @@ class RaftServer:
         self.role = "CANDIDATE"
         self.next_index = None
         self.match_index = None
-        self.votes = [False for _ in range(self.num_servers)]
+        self.votes = {}
         self.votes[self.id] = True
         self.current_term += 1
         self.candidate_request_votes()
@@ -283,12 +283,16 @@ class RaftServer:
             self.next_index[sender_id] -= 1
             self.send_append_entries_to_peer(sender_id)
 
-    def request_vote_from_peer(self, peer: int):
+    def get_last_term_and_index(self) -> Tuple[int, int]:
         last_log_index = len(self.log)
         if last_log_index == 0:
             last_log_term = 0
         else:
             last_log_term = self.log[last_log_index - 1].term
+        return last_log_term, last_log_index
+
+    def request_vote_from_peer(self, peer: int):
+        last_log_term, last_log_index = self.get_last_term_and_index()
         self.outgoing_messages.put(
             Message(
                 sender_id=self.id,
@@ -307,7 +311,30 @@ class RaftServer:
             self.request_vote_from_peer(peer)
 
     def request_vote(self, sender_id, last_log_index: int, last_log_term: int):
-        ...
+        """
+        > If votedFor is null or candidateId, and candidate’s log is at least as
+        > up-to-date as receiver’s log, grant vote (§5.2, §5.4)
+        """
+        if self.voted_for is not None:
+            vote = self.voted_for == sender_id
+        else:
+            last_log_term, last_log_index = self.get_last_term_and_index()
+            vote = (last_log_term, last_log_index) >= self.get_last_term_and_index()
+        self.outgoing_messages.put(
+            Message(
+                sender_id=self.id,
+                recipient_id=sender_id,
+                method_name="request_vote_response",
+                current_term=self.current_term,
+                args={
+                    "vote": vote,
+                },
+            )
+        )
 
     def request_vote_response(self, sender_id, vote: bool):
-        ...
+        votes = cast(Dict, self.votes)
+        votes[sender_id] = vote
+        if sum(votes.values()) > self.num_servers // 2:
+            self.become_leader()
+            self.send_append_entries()

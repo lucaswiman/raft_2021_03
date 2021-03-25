@@ -184,9 +184,7 @@ def test_become_follower_on_higher_term_number():
     assert s2.current_term == s1.current_term
     s2.become_candidate()
     assert s2.current_term > s1.current_term
-    s2.become_leader()
-    assert s2.is_leader
-    s2.send_append_entries()
     do_messages_events(servers)
-    assert not s1.is_leader
+    assert s2.is_leader  # won the election.
+    assert not s1.is_leader  # lost the election after receiving a heartbeat.
     assert s1.role == "FOLLOWER"
