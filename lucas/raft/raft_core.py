@@ -13,16 +13,12 @@ class RaftConfig:
     initial_leader: int = 0
 
     def build_servers(self) -> List[RaftServer]:
-        return [
-            RaftServer(
-                id=id,
-                next_index=[1] * len(self.addresses),  # 1-indexed
-                match_index=[0] * len(self.addresses),
-                log=[],
-                role=("LEADER" if id == self.initial_leader else "FOLLOWER"),
-            )
+        servers = [
+            RaftServer(id=id, log=[], num_servers=len(self.addresses))
             for id, address in enumerate(self.addresses)
         ]
+        servers[self.initial_leader].become_leader()
+        return servers
 
 
 RPCMethod = Literal[
@@ -78,18 +74,30 @@ RoleName = Literal["LEADER", "FOLLOWER", "CANDIDATE"]
 class RaftServer:
     id: int
 
+    num_servers: int
+    log: List[LogEntry]
+
+    role: RoleName = "FOLLOWER"
+
+    ####################### VOLATILE FIELDS ON LEADERS #######################
     # From the spec:
     # > for each server, index of the next log entry to send to that server
     # > (initialized to leader last log index + 1)
-    next_index: List[int]
+    next_index: Optional[List[int]] = None
 
     # From the spec:
     # > for each server, index of highest log entry known to be replicated on
     # > server (initialized to 0, increases monotonically)
-    match_index: List[int]
-    role: RoleName
-    log: List[LogEntry]
-    current_term: int = 1
+    match_index: Optional[List[int]] = None
+    ####################### END OF LEADER FIELDS #############################
+
+    voted_for: Optional[int] = None
+
+    # For candidates to receive vote tallies. Not mentioned in figure 2, but implied by
+    # needing to count votes.
+    votes: Optional[List[bool]] = None
+
+    _current_term: int = 1
     _commit_index: int = 0
     outgoing_messages: queue.Queue[Message] = field(default_factory=queue.Queue)
     events: queue.Queue[Event] = field(default_factory=queue.Queue)
@@ -103,17 +111,42 @@ class RaftServer:
 
     def become_leader(self):
         self.role = "LEADER"
+        self.next_index = [len(self.log) + 1] * self.num_servers
+        self.match_index = [0] * self.num_servers
+        self.votes = None
 
     def become_follower(self):
         self.role = "FOLLOWER"
+        self.next_index = None
+        self.match_index = None
+        self.votes = None
 
     def become_candidate(self):
         self.role = "CANDIDATE"
+        self.next_index = None
+        self.match_index = None
+        self.votes = [False for _ in range(self.num_servers)]
+        self.votes[self.id] = True
         self.current_term += 1
+        self.candidate_request_votes()
+
+    @property
+    def current_term(self):
+        return self._current_term
+
+    @current_term.setter
+    def current_term(self, new_term):
+        if new_term == self.current_term:
+            return
+        if self.role == "CANDIDATE":
+            self.voted_for = self.id
+        else:
+            self.voted_for = None
+        self._current_term = new_term
 
     @property
     def peers(self):
-        return [i for i, _ in enumerate(self.next_index) if i != self.id]
+        return [i for i in range(self.num_servers) if i != self.id]
 
     def process_event(self, event: Event):
         if isinstance(event, ClockTick):
@@ -140,6 +173,10 @@ class RaftServer:
             raise TypeError(type(event))
 
     def client_add_entry(self, item: ItemType):
+        if not self.is_leader:
+            return False
+        if self.next_index is None:
+            raise AssertionError("Bug!")
         next_index = self.next_index[self.id]
         prev_index = next_index - 1
         prev_term = self.log[-1].term if self.log else 0
@@ -166,6 +203,8 @@ class RaftServer:
         if not self.is_leader:
             # In the paper, a follower should direct this to the leader
             raise ValueError("Must be leader to call this method.")
+        if self.next_index is None:
+            raise AssertionError("Bug!")
         success = append_entries(self.log, prev_index, prev_term, entries)
         self.next_index[self.id] = len(self.log) + 1
         return success
@@ -231,6 +270,8 @@ class RaftServer:
         if not self.is_leader:
             # Probably an old message and I've been voted off the island.
             return
+        if self.next_index is None or self.match_index is None:
+            raise AssertionError("Bug!")
         if match_index is not None:
             # AppendEntries on msg.source worked!
             self.next_index[sender_id] = match_index + 1
@@ -239,3 +280,12 @@ class RaftServer:
         else:
             self.next_index[sender_id] -= 1
             self.send_append_entries_to_peer(sender_id)
+
+    def candidate_request_votes(self):
+        ...
+
+    def request_vote(self, sender_id, last_log_index: int, last_log_term: int):
+        ...
+
+    def request_vote_response(self, sender_id, vote: bool):
+        ...

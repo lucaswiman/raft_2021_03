@@ -1,7 +1,7 @@
 .PHONY: lint
 lint:
 	black -l 100 *.py
-	flake8 --max-line-length=100 --ignore=E203,E401 *.py
+	flake8 --max-line-length=100 --ignore=E203,E401,E266 *.py
 	mypy *.py
 
 
