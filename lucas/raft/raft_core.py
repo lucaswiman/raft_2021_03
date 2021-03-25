@@ -318,8 +318,9 @@ class RaftServer:
         if self.voted_for is not None:
             vote = self.voted_for == sender_id
         else:
-            last_log_term, last_log_index = self.get_last_term_and_index()
             vote = (last_log_term, last_log_index) >= self.get_last_term_and_index()
+            if vote:
+                self.voted_for = sender_id
         self.outgoing_messages.put(
             Message(
                 sender_id=self.id,
