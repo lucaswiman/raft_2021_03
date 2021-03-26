@@ -84,7 +84,7 @@ def compute_majority_match_index(match_index: List[int]):
     return sorted_indexes[len(sorted_indexes) // 2]
 
 
-def random_election_clockticks(lower=50, upper=100):
+def random_election_clockticks(lower=100, upper=200):
     """
     Generate a new random election timeout.
 
@@ -145,6 +145,7 @@ class RaftNode:
         return self.role == "LEADER"
 
     def become_leader(self):
+        logger.warning("Node %s became LEADER.", self.id)
         self.role = "LEADER"
         self.next_index = [len(self.log) + 1] * self.num_nodes
         self.match_index = [0] * self.num_nodes
@@ -152,12 +153,14 @@ class RaftNode:
         self.votes = None
 
     def become_follower(self):
+        logger.warning("Node %s became FOLLOWER.", self.id)
         self.role = "FOLLOWER"
         self.next_index = None
         self.match_index = None
         self.votes = None
 
     def become_candidate(self):
+        logger.warning("Node %s became CANDIDATE.", self.id)
         # This also doubles as the "election timeout" handler.
         self.role = "CANDIDATE"
         self.next_index = None
@@ -189,12 +192,10 @@ class RaftNode:
         if isinstance(event, ClockTick):
             logger.debug("Processing clocktick: %r", event)
             self.clockticks_since_last_reset += 1
-            if (
-                self.is_leader
-                and self.clockticks_since_last_reset >= self.clockticks_between_heartbeats
-            ):
-                # append_entries is what raft uses as a heartbeat.
-                self.send_append_entries()
+            if self.is_leader:
+                if self.clockticks_since_last_reset >= self.clockticks_between_heartbeats:
+                    # append_entries is what raft uses as a heartbeat.
+                    self.send_append_entries()
             elif self.clockticks_since_last_reset >= self.election_timeout_clockticks:
                 self.become_candidate()
         elif isinstance(event, Message):
