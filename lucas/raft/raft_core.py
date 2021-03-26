@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, logging, queue, random, time
+import json, logging, queue, pathlib, random, time
 from dataclasses import asdict, dataclass, field
 from typing import cast, Dict, List, Literal, Optional, Tuple, Union
 
@@ -14,6 +14,10 @@ class RaftConfig:
     # Nodes are labeled 0, 1, ..., with the id corresponding to the position in addresses.
     addresses: List[str]
     initial_leader: int = 0
+
+    @classmethod
+    def from_config(cls, file: str) -> RaftConfig:
+        return RaftConfig(**json.loads(pathlib.Path(file).read_text()))
 
     def build_node(self, id):
         return RaftNode(id=id, log=[], num_nodes=len(self.addresses))
