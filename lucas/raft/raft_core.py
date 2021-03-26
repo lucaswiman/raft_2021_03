@@ -1,9 +1,12 @@
 from __future__ import annotations
-import json, queue, random, time
+import json, logging, queue, random, time
 from dataclasses import asdict, dataclass, field
 from typing import cast, Dict, List, Literal, Optional, Tuple, Union
 
 from log import LogEntry, ItemType, append_entries
+
+
+logger = logging.getLogger("raft")
 
 
 @dataclass
@@ -12,9 +15,13 @@ class RaftConfig:
     addresses: List[str]
     initial_leader: int = 0
 
+    def build_server(self, id):
+        return RaftServer(id=id, log=[], num_servers=len(self.addresses))
+
     def build_servers(self) -> List[RaftServer]:
+        # Used for debugging / testing.
         servers = [
-            RaftServer(id=id, log=[], num_servers=len(self.addresses))
+            self.build_server(id)
             for id, address in enumerate(self.addresses)
         ]
         servers[self.initial_leader].become_leader()
@@ -178,6 +185,7 @@ class RaftServer:
         return [i for i in range(self.num_servers) if i != self.id]
 
     def process_event(self, event: Event):
+        logger.debug('Processing event: %r', event)
         if isinstance(event, ClockTick):
             self.clockticks_since_last_reset += 1
             if (
