@@ -119,6 +119,14 @@ Video from the live session will be posted here.
 * [Project 9](https://vimeo.com/529136197/9ce9bae29e) (36 min)
 * [Project 9](https://vimeo.com/529136428/aeb3718271) (20 min)
 
+**Day 5**
+
+* [Project 10](https://vimeo.com/529564896/3a70289d23) (50 min)
+* [Project 10](https://vimeo.com/529565212/71c0ec07e1) (24 min)
+* [Project 10](https://vimeo.com/529565406/2e5afb7c49) (8 min)
+* [Project 10](https://vimeo.com/529565465/9615d7e153) (15 min)
+* [Course end](https://vimeo.com/529565574/1ef73c3492) (32 min)
+
 ## Preparation Exercises
 
 The following project covers some background material related to socket
