@@ -186,8 +186,8 @@ class RaftNode:
         return [i for i in range(self.num_nodes) if i != self.id]
 
     def process_event(self, event: Event):
-        logger.debug("Processing event: %r", event)
         if isinstance(event, ClockTick):
+            logger.debug("Processing clocktick: %r", event)
             self.clockticks_since_last_reset += 1
             if (
                 self.is_leader
@@ -198,6 +198,7 @@ class RaftNode:
             elif self.clockticks_since_last_reset >= self.election_timeout_clockticks:
                 self.become_candidate()
         elif isinstance(event, Message):
+            logger.debug("Processing message: %r", event)
             message = cast(Message, event)
             if message.method_name not in RPC_METHODS:
                 raise ValueError(f"Unhandled method {message.method_name=}")
