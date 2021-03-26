@@ -1,11 +1,49 @@
 #!/usr/bin/env python
-import argparse, logging
+from __future__ import annotations
 
-from raft_core import RaftConfig, RaftNode
+import argparse, functools, logging, sys
+from queue import Queue
+from threading import Thread
+
+from raft_core import Message, RaftConfig, RaftNode
+
+
+logger = logging.getLogger("server")
+errors = Queue()
+
+def exc_logged(func):
+    @functools.wraps(func)
+    def logged_func(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+        except Exception as e:
+            errors.put(e)
+            logger.exception(e)
+            raise
+        return func(*args, **kwargs)
+    return logged_func    
+
+
+@exc_logged
+def send_messages(config: RaftConfig, queue: Queue[Message]):
+    """
+    Handle the outgoing messages queue.
+    """
+    while True:
+        message = queue.get()
+        raise NotImplementedError()
 
 
 def serve(config: RaftConfig, node: RaftNode):
-    pass
+    threads = [
+        Thread(target=send_messages, args=(config, node.outgoing_messages), daemon=True),
+    ]
+    for thread in threads:
+        thread.start()
+    error = errors.get()
+    if error:
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     log_format_string = "%(asctime)s:%(name)s:%(levelname)s:%(threadName)s: %(message)s"
