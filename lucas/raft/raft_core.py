@@ -15,17 +15,14 @@ class RaftConfig:
     addresses: List[str]
     initial_leader: int = 0
 
-    def build_server(self, id):
-        return RaftServer(id=id, log=[], num_servers=len(self.addresses))
+    def build_node(self, id):
+        return RaftNode(id=id, log=[], num_nodes=len(self.addresses))
 
-    def build_servers(self) -> List[RaftServer]:
+    def build_nodes(self) -> List[RaftNode]:
         # Used for debugging / testing.
-        servers = [
-            self.build_server(id)
-            for id, address in enumerate(self.addresses)
-        ]
-        servers[self.initial_leader].become_leader()
-        return servers
+        nodes = [self.build_node(id) for id, address in enumerate(self.addresses)]
+        nodes[self.initial_leader].become_leader()
+        return nodes
 
 
 RPCMethod = Literal[
@@ -72,7 +69,7 @@ Event = Union[Message, ClockTick]
 
 def compute_majority_match_index(match_index: List[int]):
     """
-    Compute the commit index as the largest MatchIndex present on a majority of servers.
+    Compute the commit index as the largest MatchIndex present on a majority of node.
 
     This is _almost_ the median, unless the list has an even length.
     """
@@ -96,10 +93,10 @@ RoleName = Literal["LEADER", "FOLLOWER", "CANDIDATE"]
 
 
 @dataclass
-class RaftServer:
+class RaftNode:
     id: int
 
-    num_servers: int
+    num_nodes: int
     log: List[LogEntry]
 
     role: RoleName = "FOLLOWER"
@@ -145,8 +142,8 @@ class RaftServer:
 
     def become_leader(self):
         self.role = "LEADER"
-        self.next_index = [len(self.log) + 1] * self.num_servers
-        self.match_index = [0] * self.num_servers
+        self.next_index = [len(self.log) + 1] * self.num_nodes
+        self.match_index = [0] * self.num_nodes
         self.match_index[self.id] = len(self.log)
         self.votes = None
 
@@ -182,10 +179,10 @@ class RaftServer:
 
     @property
     def peers(self):
-        return [i for i in range(self.num_servers) if i != self.id]
+        return [i for i in range(self.num_nodes) if i != self.id]
 
     def process_event(self, event: Event):
-        logger.debug('Processing event: %r', event)
+        logger.debug("Processing event: %r", event)
         if isinstance(event, ClockTick):
             self.clockticks_since_last_reset += 1
             if (
@@ -245,7 +242,7 @@ class RaftServer:
     def leader_set_commit_index(self):
         majority_match_index = compute_majority_match_index(self.match_index)
         if majority_match_index > self.commit_index:
-            # This log entry has been replicated on a majority of servers.
+            # This log entry has been replicated on a majority of nodes.
             # However, we cannot update the commit_index to a previous term's
             # record. See "Figure 8" tests for reasoning why not.
             if self.log[majority_match_index - 1].term < self.current_term:
@@ -395,6 +392,6 @@ class RaftServer:
             return
         votes = cast(Dict, self.votes)
         votes[sender_id] = vote
-        if sum(votes.values()) > self.num_servers // 2:
+        if sum(votes.values()) > self.num_nodes // 2:
             self.become_leader()
             self.send_append_entries()
