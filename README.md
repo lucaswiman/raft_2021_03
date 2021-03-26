@@ -112,6 +112,12 @@ Video from the live session will be posted here.
 * [Project 7](https://vimeo.com/528592705/4f5cf3d943) (30 min)
 * [Project 7](https://vimeo.com/528592919/b9a9c75fb7) (37 min)
 
+**Day 4**
+
+* [Project 8](https://vimeo.com/529135662/c450db6aa3) (53 min)
+* [Project 8](https://vimeo.com/529135999/a9923db521) (31 min)
+* [Project 9](https://vimeo.com/529136197/9ce9bae29e) (36 min)
+* [Project 9](https://vimeo.com/529136428/aeb3718271) (20 min)
 
 ## Preparation Exercises
 
