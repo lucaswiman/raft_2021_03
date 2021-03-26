@@ -1,8 +1,8 @@
 {
   "addresses": [
-    "udp://127.0.0.1:15001",
-    "udp://127.0.0.1:15002",
-    "udp://127.0.0.1:15003"
+    "udp://localhost:15001",
+    "udp://localhost:15002",
+    "udp://localhost:15003"
   ],
   "initial_leader": 0
 }
