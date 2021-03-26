@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import copy, re, queue
+import copy, random, re, queue
+from collections import Counter
 from typing import List
 
 import pytest
 
-from raft_core import Message, RaftConfig, RaftServer, compute_majority_match_index
+from raft_core import ClockTick, Message, RaftConfig, RaftServer, compute_majority_match_index
 from log import LogEntry
 from test_log import FIG_7_EXAMPLES, gen_log
 
@@ -31,9 +32,10 @@ def process_event(server: RaftServer, servers, exclude=None) -> bool:
     return True
 
 
-def do_messages_events(servers: List[RaftServer], max_steps=1000, exclude=None) -> int:
+def do_messages_events(servers: List[RaftServer], max_steps=1000, exclude=None, max_ticks=0) -> int:
     steps = 0
-    while steps < max_steps:
+    executed_ticks = 0
+    while (steps < max_steps) and executed_ticks <= max_ticks:
         prev_steps = steps
         for i, server in enumerate(servers):
             if i in (exclude or ()):
@@ -43,6 +45,11 @@ def do_messages_events(servers: List[RaftServer], max_steps=1000, exclude=None) 
             if i in (exclude or ()):
                 continue
             steps += process_event(server, servers, exclude)
+        if executed_ticks < max_ticks:
+            for server in servers:
+                steps += 1
+                server.process_event(ClockTick())
+            executed_ticks += 1
         if prev_steps == steps:  # did no work
             break
     return steps
@@ -366,3 +373,42 @@ def test_figure_8_d():
         [LogEntry(1, {"x": 1}), LogEntry(3, {"x": 3})],
         [LogEntry(1, {"x": 1}), LogEntry(3, {"x": 3})],
     ]
+
+
+def tick(server: RaftServer, *, num_clockticks: int = 1):
+    for _ in range(num_clockticks):
+        server.process_event(ClockTick())
+
+
+def test_the_concept_of_time():
+    random.seed(0)
+    config = RaftConfig([str(i + 1) for i in range(5)])
+    leader, *followers = servers = config.build_servers()
+    tick(leader, num_clockticks=leader.clockticks_between_heartbeats - 1)
+    assert leader.outgoing_messages.qsize() == 0
+    tick(leader)
+    assert leader.outgoing_messages.qsize() == 4
+    assert leader.clockticks_since_last_reset == 0
+    for follower in followers:
+        assert follower.role == "FOLLOWER"
+        tick(follower, num_clockticks=follower.election_timeout_clockticks - 1)
+        assert follower.role == "FOLLOWER"
+        assert follower.outgoing_messages.qsize() == 0
+        tick(follower)
+        assert follower.role == "CANDIDATE"
+        assert follower.outgoing_messages.qsize() == 4
+        assert follower.current_term == leader.current_term + 1
+        assert follower.voted_for == follower.id
+    do_messages_events(servers, max_ticks=0)
+    for follower in followers:
+        assert follower.role == "CANDIDATE"
+        assert follower.voted_for == follower.id
+        votes = follower.votes.copy()
+        assert leader.id in votes
+        votes.pop(leader.id)
+        # Everyone should vote for themselves.
+        assert votes == {server.id: server.id == follower.id for server in followers}
+
+    # Somebody should win the election.
+    do_messages_events(servers, max_ticks=10_000)
+    assert Counter(server.role for server in servers) == {"LEADER": 1, "FOLLOWER": 4}

@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, queue
+import json, queue, random, time
 from dataclasses import asdict, dataclass, field
 from typing import cast, Dict, List, Literal, Optional, Tuple, Union
 
@@ -48,9 +48,16 @@ class Message:
         return json.dumps(asdict(self)).encode("utf-8")
 
 
+def current_time_ms():
+    return time.time_ns() // 1_000_000
+
+
+PROCESS_START_TIME_MS = current_time_ms()
+
+
 @dataclass
 class ClockTick:
-    pass
+    ms: int = field(default_factory=lambda: current_time_ms() - PROCESS_START_TIME_MS)
 
 
 Event = Union[Message, ClockTick]
@@ -67,6 +74,15 @@ def compute_majority_match_index(match_index: List[int]):
     # but since python is 0-indexed, it gets subtracted away.
     # e.g. for n=2, we want the 2nd index, which is 1.
     return sorted_indexes[len(sorted_indexes) // 2]
+
+
+def random_election_clockticks(lower=50, upper=100):
+    """
+    Generate a new random election timeout.
+
+    One clocktick = 10ms.
+    """
+    return random.randint(lower, upper)
 
 
 RoleName = Literal["LEADER", "FOLLOWER", "CANDIDATE"]
@@ -107,6 +123,15 @@ class RaftServer:
     application_index: int = 0
     applications: queue.Queue[List[ItemType]] = field(default_factory=queue.Queue)
 
+    # Number of clockticks needed to create an election.
+    # Should be re-randomized every time an election timeout occurs.
+    election_timeout_clockticks: int = field(default_factory=random_election_clockticks)
+    # Timer is reset on every election and every heartbeat.
+    clockticks_since_last_reset: int = 0
+    # Per the paper, this should be an order of magnitude less than
+    # election_timeout_clockticks.
+    clockticks_between_heartbeats: int = 5  # 50ms
+
     @property
     def is_leader(self) -> bool:
         return self.role == "LEADER"
@@ -125,6 +150,7 @@ class RaftServer:
         self.votes = None
 
     def become_candidate(self):
+        # This also doubles as the "election timeout" handler.
         self.role = "CANDIDATE"
         self.next_index = None
         self.match_index = None
@@ -153,7 +179,15 @@ class RaftServer:
 
     def process_event(self, event: Event):
         if isinstance(event, ClockTick):
-            raise NotImplementedError()
+            self.clockticks_since_last_reset += 1
+            if (
+                self.is_leader
+                and self.clockticks_since_last_reset >= self.clockticks_between_heartbeats
+            ):
+                # append_entries is what raft uses as a heartbeat.
+                self.send_append_entries()
+            elif self.clockticks_since_last_reset >= self.election_timeout_clockticks:
+                self.become_candidate()
         elif isinstance(event, Message):
             message = cast(Message, event)
             if message.method_name not in RPC_METHODS:
@@ -247,6 +281,8 @@ class RaftServer:
 
     def send_append_entries(self):
         # Send an AppendEntries message to all peers to update their logs
+        assert self.is_leader, "bug"
+        self.clockticks_since_last_reset = 0
         for peer in self.peers:
             self.send_append_entries_to_peer(peer)
 
@@ -258,6 +294,7 @@ class RaftServer:
         entries: List[dict],
         commit_index: int,
     ):
+        self.clockticks_since_last_reset = 0
         # Process an AppendEntries messages sent by the leader
         success = append_entries(
             self.log, prev_index, prev_term, [LogEntry(**entry) for entry in entries]
@@ -317,6 +354,7 @@ class RaftServer:
         )
 
     def candidate_request_votes(self):
+        self.clockticks_since_last_reset = 0
         for peer in self.peers:
             self.request_vote_from_peer(peer)
 
