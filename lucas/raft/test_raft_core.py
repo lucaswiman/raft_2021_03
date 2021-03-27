@@ -412,12 +412,3 @@ def test_the_concept_of_time():
     # Somebody should win the election.
     do_messages_events(nodes, max_ticks=10_000)
     assert Counter(node.role for node in nodes) == {"LEADER": 1, "FOLLOWER": 4}
-
-
-def test_votes_among_two_servers_who_are_both_candidates():
-    config = RaftConfig([str(i + 1) for i in range(2)])
-    nodes = config.build_nodes()
-    for node in nodes:
-        node.become_candidate()
-    do_messages_events(nodes, max_ticks=1)
-    breakpoint()

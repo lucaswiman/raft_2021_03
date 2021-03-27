@@ -21,7 +21,7 @@ def raft_get(key: str, config: RaftConfig):
         try:
             response = requests.get(f"{address}/get/{key}")
         except Exception as e:
-            logger.error(f"Failed to contact {address}")
+            logger.debug(f"Failed to contact {address}")
         else:
             if response.status_code == 200:
                 return True, response.json()
@@ -40,7 +40,7 @@ def raft_set(key: str, val: str, config: RaftConfig):
         try:
             response = requests.post(f"{address}/set/{key}", json=val)
         except Exception as e:
-            logger.error(f"Failed to contact {address}")
+            logger.debug(f"Failed to contact {address}")
         else:
             if response.status_code == 200:
                 return True, response.json()

@@ -39,25 +39,25 @@ class UDPAddress(NamedTuple):
         transport over the wire.
         """
 
-        def get_client_socket():
+        def get_socket():
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
             sock.bind(("", self.port))
             sock.listen()
-            client, addr = sock.accept()
-            return client, sock
+            return sock
 
-        client, sock = get_client_socket()
+        sock = get_socket()
         try:
             while True:
                 size_chars = ""
                 size: Optional[int] = None
+                client, addr = sock.accept()  # wait for connections
                 while True:
                     char = client.recv(1)
                     if char == b"":
                         # Disconnection
                         sock.close()
-                        client, sock = get_client_socket()
+                        sock = get_socket()
                         break
                     if char.isdigit():
                         size_chars += char.decode("ascii")
@@ -68,8 +68,6 @@ class UDPAddress(NamedTuple):
                         raise ValueError(f"Invalid character for size prefix: {char=}")
                 if size is not None:
                     yield client.recv(size)
-                # sock.close()
-                # client, sock = get_client_socket()
         finally:
             try:
                 sock.close()
@@ -96,32 +94,19 @@ class UDPAddress(NamedTuple):
         message: bytes
         while True:
             message = yield
-            if sock is not None:
+            try:
+                sock = get_socket()
+            except (ConnectionRefusedError, ConnectionResetError):
+                logger.debug("Unable to connect to %s", self)
+                continue
+            with sock:
+                encoded: bytes = b"%s:%s" % (str(len(message)).encode(), message)
+                logger.info("Sending: %r", encoded)
                 try:
-                    ready_to_read, ready_to_write, in_error = select.select([sock], [sock], [], 5)
-                except select.error:
-                    sock.shutdown(1)  # 0 = done receiving, 1 = done sending, 2 = both
+                    sock.send(encoded)
+                except BrokenPipeError:
                     sock.close()
                     sock = None
-                else:
-                    if len(ready_to_write) == 0:
-                        sock.shutdown(1)  # 0 = done receiving, 1 = done sending, 2 = both
-                        sock.close()
-                        sock = None
-            if sock is None:
-                logger.debug("Connecting send socket: %s", self)
-                try:
-                    sock = get_socket()
-                except (ConnectionRefusedError, ConnectionResetError):
-                    logger.debug("Unable to connect to %s", self)
-                    continue
-            encoded: bytes = b"%s:%s" % (str(len(message)).encode(), message)
-            logger.info("Sending: %r", encoded)
-            try:
-                sock.send(encoded)
-            except BrokenPipeError:
-                sock.close()
-                sock = None
 
 
 def exc_logged(func):
@@ -208,7 +193,7 @@ def apply(kv_store: Dict[str, str], applications: Queue[List[ItemType]]):
     while True:
         entries = applications.get()
         for application in entries:
-            print(applications)
+            logger.info("Applying entries%s", entries)
             kv_store.update(application)
 
 

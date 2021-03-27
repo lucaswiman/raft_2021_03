@@ -37,6 +37,7 @@ RPCMethod = Literal[
     "client_add_entry",
     "request_vote",
     "request_vote_response",
+    "reject_message",
 ]
 RPC_METHODS = frozenset(RPCMethod.__args__)  # type: ignore
 
@@ -211,6 +212,13 @@ class RaftNode:
                 # the current term. #OldNews
                 # TODO: spec says "Reply false" if this case happens. Should this be a message?
                 logger.warning(f"Rejected message: {message}, current_term={self.current_term}")
+                self.outgoing_messages.put(Message(
+                    sender_id=self.id,
+                    recipient_id=message.sender_id,
+                    method_name="reject_message",
+                    current_term=self.current_term,
+                    args={},
+                ))
                 return
             elif message.current_term > self.current_term:
                 # Figure 4: The role state machine should transition to follower whenever it
@@ -315,6 +323,10 @@ class RaftNode:
         for peer in self.peers:
             self.send_append_entries_to_peer(peer)
 
+    def reject_message(self, sender_id):
+        # only exists to update terms.
+        pass
+
     def follower_append_entries(
         self,
         sender_id: int,
@@ -332,6 +344,7 @@ class RaftNode:
         if success:
             # https://github.com/ongardie/raft.tla/blob/974fff7236545912c035ff8041582864449d0ffe/raft.tla#L368-L369
             match_index = prev_index + len(entries)
+            self.commit_index = commit_index
         self.outgoing_messages.put(
             Message(
                 sender_id=self.id,
@@ -341,7 +354,6 @@ class RaftNode:
                 current_term=self.current_term,
             )
         )
-        self.commit_index = commit_index
 
     def leader_append_entries_response(self, sender_id: int, match_index: Optional[int]):
         # Process an AppendEntriesResponse message sent by a follower
@@ -351,7 +363,7 @@ class RaftNode:
         if self.next_index is None or self.match_index is None:
             raise AssertionError("Bug!")
         if match_index is not None:
-            # AppendEntries on msg.source worked!
+            # AppendEntries worked!
             self.next_index[sender_id] = match_index + 1
             self.match_index[sender_id] = match_index
             self.leader_set_commit_index()
@@ -393,8 +405,10 @@ class RaftNode:
         > up-to-date as receiver’s log, grant vote (§5.2, §5.4)
         """
         if self.voted_for is not None:
-            vote = self.voted_for == sender_id
+            logger.debug(f"Voting for {self.voted_for} for {sender_id}; {self.id}")
+            vote = (self.voted_for == sender_id)
         else:
+            logger.debug(f"Vote considerations:\n\t Message:{last_log_term=}, {last_log_index=}\n\tSelf: {self.get_last_term_and_index()=}")
             vote = (last_log_term, last_log_index) >= self.get_last_term_and_index()
             if vote:
                 self.voted_for = sender_id
