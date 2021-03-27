@@ -35,16 +35,18 @@ def process_event(node: RaftNode, nodes, exclude=None) -> bool:
 def do_messages_events(nodes: List[RaftNode], max_steps=1000, exclude=None, max_ticks=0) -> int:
     steps = 0
     executed_ticks = 0
-    while (steps < max_steps) and executed_ticks <= max_ticks:
+    while (steps < max_steps) or executed_ticks <= max_ticks:
         prev_steps = steps
         for i, node in enumerate(nodes):
             if i in (exclude or ()):
                 continue
-            steps += process_message(node, nodes, exclude)
+            while process_message(node, nodes, exclude):
+                steps += 1
         for i, node in enumerate(nodes):
             if i in (exclude or ()):
                 continue
-            steps += process_event(node, nodes, exclude)
+            while process_event(node, nodes, exclude):
+                steps += 1
         if executed_ticks < max_ticks:
             for node in nodes:
                 steps += 1
@@ -414,5 +416,5 @@ def test_the_concept_of_time():
         assert votes == {node.id: node.id == follower.id for node in followers}
 
     # Somebody should win the election.
-    do_messages_events(nodes, max_ticks=10_000)
+    do_messages_events(nodes, max_ticks=1000)
     assert Counter(node.role for node in nodes) == {"LEADER": 1, "FOLLOWER": 4}

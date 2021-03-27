@@ -336,6 +336,24 @@ class RaftNode:
         commit_index: int,
     ):
         self.clockticks_since_last_reset = 0
+        if self.role == "CANDIDATE":
+            # If a candidate receives an appendEntries request with the current term,
+            # then it become a follower, but not process the actual appended entries.
+            # The ignoring the appended entries thing may not be necessary, but is part
+            # of the TLA spec.
+            # Note that this is not included in Figure 2 in the raft paper.
+            # See https://github.com/ongardie/raft.tla/blob/974fff7236545912c035ff8041582864449d0ffe/raft.tla#L345-L349
+            #
+            # This can happen if:
+            # * There is a network partition.
+            # * The leader times out.
+            # * Two candidates start new elections, incrementing the term number to the same value.
+            # * One of the candidates wins since it can form a quorum on its side of the partition.
+            # * The network partition ends.
+            # * The newly-elected leader sends a heartbeat to the candidate, which has not finished its election yet.
+            self.become_follower()
+            return
+
         # Process an AppendEntries messages sent by the leader
         success = append_entries(
             self.log, prev_index, prev_term, [LogEntry(**entry) for entry in entries]
