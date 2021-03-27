@@ -224,10 +224,14 @@ def test_figure_6_election():
         # These should lose the election, for all subsets of nodes.
         nodes = build()
         node = nodes[index]
+        orig_term = node.current_term
         node.become_candidate()
         assert node.role == "CANDIDATE"
         do_messages_events(nodes)
-        assert node.role == "CANDIDATE"
+        if orig_term == 3:
+            assert node.role == "CANDIDATE"
+        else:
+            assert node.role == "FOLLOWER"
 
     # Server 4 can gain a quorum with 1,3:
     nodes = build()
