@@ -169,6 +169,7 @@ class RaftNode:
         self.votes[self.id] = True
         self.current_term += 1
         self.candidate_request_votes()
+        self.election_timeout_clockticks = random_election_clockticks()
 
     @property
     def current_term(self):
@@ -208,6 +209,7 @@ class RaftNode:
                 # Figure 2: all RPCs should be rejected if the message term is lower than
                 # the current term. #OldNews
                 # TODO: spec says "Reply false" if this case happens. Should this be a message?
+                logger.warning(f"Rejected message: {message}, current_term={self.current_term}")
                 return
             elif message.current_term > self.current_term:
                 # Figure 4: The role state machine should transition to follower whenever it
