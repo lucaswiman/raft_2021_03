@@ -14,6 +14,7 @@ class RaftConfig:
     # Nodes are labeled 0, 1, ..., with the id corresponding to the position in addresses.
     addresses: List[str]
     initial_leader: int = 0
+    client_addresses: Optional[List[str]] = None
 
     @classmethod
     def from_config(cls, file: str) -> RaftConfig:
@@ -145,7 +146,7 @@ class RaftNode:
         return self.role == "LEADER"
 
     def become_leader(self):
-        logger.warning("Node %s became LEADER.", self.id)
+        logger.warning("Node %s became LEADER, term %s.", self.id, self.current_term)
         self.role = "LEADER"
         self.next_index = [len(self.log) + 1] * self.num_nodes
         self.match_index = [0] * self.num_nodes
@@ -153,14 +154,14 @@ class RaftNode:
         self.votes = None
 
     def become_follower(self):
-        logger.warning("Node %s became FOLLOWER.", self.id)
+        logger.warning("Node %s became FOLLOWER, term %s.", self.id, self.current_term)
         self.role = "FOLLOWER"
         self.next_index = None
         self.match_index = None
         self.votes = None
 
     def become_candidate(self):
-        logger.warning("Node %s became CANDIDATE.", self.id)
+        logger.warning("Node %s became CANDIDATE, term %s.", self.id, self.current_term)
         # This also doubles as the "election timeout" handler.
         self.role = "CANDIDATE"
         self.next_index = None
@@ -169,7 +170,6 @@ class RaftNode:
         self.votes[self.id] = True
         self.current_term += 1
         self.candidate_request_votes()
-        self.election_timeout_clockticks = random_election_clockticks()
 
     @property
     def current_term(self):
@@ -179,6 +179,7 @@ class RaftNode:
     def current_term(self, new_term):
         if new_term == self.current_term:
             return
+        self.election_timeout_clockticks = random_election_clockticks()
         if self.role == "CANDIDATE":
             self.voted_for = self.id
         else:
@@ -214,8 +215,16 @@ class RaftNode:
             elif message.current_term > self.current_term:
                 # Figure 4: The role state machine should transition to follower whenever it
                 # sees a higher term.
-                self.current_term = message.current_term
+                logger.warning(
+                    f"Newer message: updating {self.current_term} to {message.current_term}."
+                )
+
+                # Ordering is very important in the next two lines, since a candidate is demoted
+                # to a follower on a newer term, but candidates always vote for themselves in
+                # every term. If the ordering is reversed, the candidate will vote for itself
+                # despite there being a newer term, which can lead to infinite loops.
                 self.become_follower()
+                self.current_term = message.current_term
 
             getattr(self, message.method_name)(sender_id=message.sender_id, **message.args)
 
@@ -231,9 +240,16 @@ class RaftNode:
         prev_index = next_index - 1
         prev_term = self.log[-1].term if self.log else 0
         self.match_index[self.id] = len(self.log)
-        return self.leader_append_entries(
+        success = self.leader_append_entries(
             prev_index, prev_term, [LogEntry(term=self.current_term, item=item)]
         )
+        if success:
+            return {
+                "current_term": self.current_term,
+                "index": len(self.log),
+            }
+        else:
+            return None
 
     @property
     def commit_index(self):

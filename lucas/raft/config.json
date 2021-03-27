@@ -4,5 +4,10 @@
     "udp://localhost:15002",
     "udp://localhost:15003"
   ],
-  "initial_leader": 0
+  "initial_leader": 0,
+  "client_addresses": [
+    "http://localhost:16001",
+    "http://localhost:16002",
+    "http://localhost:16003"
+  ]
 }
