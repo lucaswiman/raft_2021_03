@@ -86,7 +86,7 @@ def compute_majority_match_index(match_index: List[int]):
     return sorted_indexes[len(sorted_indexes) // 2]
 
 
-def random_election_clockticks(lower=100, upper=200):
+def random_election_clockticks(lower=50, upper=200):
     """
     Generate a new random election timeout.
 
